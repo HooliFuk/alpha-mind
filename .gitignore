@@ -1,13 +1,10 @@
-# .gitignore
-.env
+﻿.env
 venv/
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-models/saved/*.pkl
-models/saved/*.joblib
 *.db
-.DS_Store
 logs/
 *.log
+models/saved/
+.agents/
+.claude/
