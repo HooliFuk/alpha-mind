@@ -1,10 +1,12 @@
 ﻿.env
+.env.example
 venv/
 __pycache__/
 *.pyc
 *.db
 logs/
 *.log
-models/saved/
 .agents/
 .claude/
+test_*.py
+alphatrader.db
