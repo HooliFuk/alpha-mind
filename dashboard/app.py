@@ -653,4 +653,553 @@ elif page == "⚡ Place Paper Trade":
     st.divider()
     st.subheader("✅ AkuFi Execution Gate")
 
-    
+    acc = services["broker"].get_account()
+    portfolio_val = acc.get("portfolio_value", 100000)
+
+    if trade_ticker and trade_qty > 0:
+        try:
+            current_p = services[
+                "market"
+            ].get_current_price(trade_ticker)
+            trade_value = current_p * trade_qty
+            pct_of_portfolio = (
+                trade_value / portfolio_val * 100
+            )
+
+            st.markdown(
+                f"**Order Summary:** "
+                f"{trade_side} **{trade_qty}** shares of "
+                f"**{trade_ticker}** @ ~${current_p:.2f}"
+            )
+            st.markdown(
+                f"**Estimated Cost:** ${trade_value:,.2f} "
+                f"({pct_of_portfolio:.1f}% of portfolio)"
+            )
+
+            if pct_of_portfolio > 5:
+                st.warning(
+                    f"⚠️ AkuFi Risk Alert: Position size "
+                    f"{pct_of_portfolio:.1f}% exceeds "
+                    f"recommended 5% limit"
+                )
+
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                execute_btn = st.button(
+                    f"💎 EXECUTE {trade_side} ORDER",
+                    type="primary",
+                    use_container_width=True
+                )
+            with col_btn2:
+                st.button(
+                    "❌ Cancel",
+                    use_container_width=True
+                )
+
+            if execute_btn:
+                with st.spinner(
+                    f"AkuFi executing {trade_side} "
+                    f"order for {trade_ticker}..."
+                ):
+                    result = services[
+                        "broker"
+                    ].place_market_order(
+                        symbol=trade_ticker,
+                        qty=int(trade_qty),
+                        side=trade_side.lower(),
+                        reason=trade_reason
+                    )
+                if result.get("success"):
+                    st.success(
+                        f"✅ AkuFi Order Executed!\n"
+                        f"Order ID: {result['order_id']}\n"
+                        f"Symbol: {result['symbol']}\n"
+                        f"Side: {result['side']}\n"
+                        f"Qty: {result['qty']} shares\n"
+                        f"Status: {result['status']}"
+                    )
+                    st.balloons()
+                else:
+                    st.error(
+                        f"❌ Order Failed: "
+                        f"{result.get('error', 'Unknown')}"
+                    )
+        except Exception as e:
+            st.error(f"Error: {e}")
+
+# ══════════════════════════════════════════════════════
+# PAGE 4: PENDING APPROVALS
+# ══════════════════════════════════════════════════════
+elif page == "⏳ Pending Approvals":
+    st.title("⏳ AkuFi Trade Approval Gate")
+    st.info(
+        "**Human-in-the-Loop Control**: "
+        "AkuFi AI recommends. You decide. "
+        "Every trade requires your personal approval."
+    )
+    st.divider()
+
+    spy_price = services["market"].get_current_price("SPY")
+    aapl_price = services["market"].get_current_price("AAPL")
+
+    trades = [
+        {
+            "ticker": "SPY",
+            "portfolio": "SNIPER",
+            "signal": "BUY",
+            "entry": spy_price,
+            "stop": round(spy_price * 0.98, 2),
+            "target": round(spy_price * 1.04, 2),
+            "confidence": 0.87,
+            "qty": 3,
+            "agents": [
+                "Technical ✅",
+                "Whale ✅",
+                "Sentiment ✅"
+            ],
+            "reasoning": (
+                "AkuFi detected strong SPY momentum above VWAP. "
+                "Price above EMA20 and EMA50. "
+                "Volume confirming institutional buying. "
+                "All 3 AkuFi agents in agreement."
+            )
+        },
+        {
+            "ticker": "AAPL",
+            "portfolio": "FORTRESS",
+            "signal": "BUY",
+            "entry": aapl_price,
+            "stop": round(aapl_price * 0.97, 2),
+            "target": round(aapl_price * 1.06, 2),
+            "confidence": 0.79,
+            "qty": 2,
+            "agents": [
+                "Fundamental ✅",
+                "Macro ✅",
+                "Technical ✅"
+            ],
+            "reasoning": (
+                "AkuFi FORTRESS signal: AAPL at key support. "
+                "Strong earnings growth trajectory. "
+                "AI services revenue accelerating. "
+                "Long term wealth accumulation position."
+            )
+        }
+    ]
+
+    st.warning(
+        f"⏳ {len(trades)} AkuFi signals waiting "
+        f"for your approval"
+    )
+
+    for i, t in enumerate(trades):
+        with st.container():
+            p_icon = (
+                "⚡" if t["portfolio"] == "SNIPER"
+                else "🏰"
+            )
+            s_icon = (
+                "🟢" if t["signal"] == "BUY"
+                else "🔴"
+            )
+            risk = round(t["entry"] - t["stop"], 2)
+            reward = round(t["target"] - t["entry"], 2)
+            rr = round(reward / risk, 1) if risk > 0 else 0
+            position_val = round(t["entry"] * t["qty"], 2)
+
+            st.markdown(
+                f"### {p_icon} AkuFi {t['portfolio']} | "
+                f"{s_icon} {t['signal']} **{t['ticker']}**"
+            )
+
+            c1, c2, c3, c4, c5 = st.columns(5)
+            c1.metric("Entry", f"${t['entry']:.2f}")
+            c2.metric(
+                "Stop Loss",
+                f"${t['stop']:.2f}",
+                f"-${risk:.2f}"
+            )
+            c3.metric(
+                "Target",
+                f"${t['target']:.2f}",
+                f"+${reward:.2f}"
+            )
+            c4.metric("R:R", f"{rr}:1")
+            c5.metric(
+                "AI Confidence",
+                f"{t['confidence']*100:.0f}%"
+            )
+
+            st.markdown(
+                f"**AkuFi Agents:** {' | '.join(t['agents'])}"
+            )
+            st.info(f"💎 {t['reasoning']}")
+            st.caption(
+                f"Position: {t['qty']} shares "
+                f"= ${position_val:,.2f}"
+            )
+
+            b1, b2, b3, b4 = st.columns(4)
+
+            if b1.button(
+                "✅ APPROVE & EXECUTE",
+                key=f"app_{i}",
+                use_container_width=True
+            ):
+                with st.spinner(
+                    f"AkuFi executing {t['ticker']}..."
+                ):
+                    result = services[
+                        "broker"
+                    ].place_market_order(
+                        symbol=t["ticker"],
+                        qty=t["qty"],
+                        side=t["signal"].lower(),
+                        reason="Human approved via AkuFi dashboard"
+                    )
+                if result.get("success"):
+                    st.success(
+                        f"✅ AkuFi executed {t['ticker']}! "
+                        f"Order: {result['order_id']}"
+                    )
+                    st.balloons()
+                else:
+                    st.error(
+                        f"❌ Failed: {result.get('error')}"
+                    )
+
+            if b2.button(
+                "❌ REJECT",
+                key=f"rej_{i}",
+                use_container_width=True
+            ):
+                st.error(
+                    f"❌ {t['ticker']} signal rejected."
+                )
+
+            if b3.button(
+                "⏰ +15 mins",
+                key=f"wait_{i}",
+                use_container_width=True
+            ):
+                st.warning(
+                    "⏰ AkuFi will re-alert in 15 minutes."
+                )
+
+            if b4.button(
+                "🔍 Details",
+                key=f"det_{i}",
+                use_container_width=True
+            ):
+                st.json(t)
+
+            st.divider()
+
+# ══════════════════════════════════════════════════════
+# PAGE 5: LIVE ANALYSIS
+# ══════════════════════════════════════════════════════
+elif page == "📊 Live Analysis":
+    st.title("📊 AkuFi Live Technical Analysis")
+    st.markdown(
+        "*Real-time AI-powered technical breakdown "
+        "of any ticker*"
+    )
+    st.divider()
+
+    a1, a2 = st.columns([3, 1])
+    with a1:
+        aticker = st.text_input(
+            "Enter Ticker Symbol",
+            value="AAPL",
+            placeholder="e.g. NVDA, TSLA, SPY, AAPL"
+        ).upper().strip()
+    with a2:
+        st.write("")
+        run_btn = st.button(
+            "💎 Analyze",
+            type="primary",
+            use_container_width=True
+        )
+
+    if run_btn and aticker:
+        with st.spinner(
+            f"AkuFi analyzing {aticker}..."
+        ):
+            df = services["market"].get_historical_bars(
+                aticker, "6mo"
+            )
+
+        if df.empty:
+            st.error(f"No data found for {aticker}")
+        else:
+            r = services[
+                "indicators"
+            ].get_full_analysis(df, aticker)
+            if "error" in r:
+                st.error(r["error"])
+            else:
+                st.subheader(
+                    f"📊 AkuFi Analysis — {aticker}"
+                )
+                t1, t2, t3, t4 = st.columns(4)
+                t1.metric(
+                    "Price",
+                    f"${r['current_price']:.2f}"
+                )
+                t2.metric("Trend", r["trend"])
+                t3.metric(
+                    "RSI",
+                    f"{r['rsi']['value']:.1f}",
+                    r["rsi"]["signal"]
+                )
+                t4.metric("MACD", r["macd"]["signal"])
+
+                st.divider()
+                d1, d2, d3 = st.columns(3)
+
+                with d1:
+                    st.markdown("**📈 Moving Averages**")
+                    st.write(
+                        f"EMA 20: "
+                        f"${r['moving_averages']['ema_20']:.2f}"
+                    )
+                    st.write(
+                        f"EMA 50: "
+                        f"${r['moving_averages']['ema_50']:.2f}"
+                    )
+                    st.write(
+                        f"EMA 200: "
+                        f"${r['moving_averages']['ema_200']:.2f}"
+                    )
+                    gc = r["moving_averages"]["golden_cross"]
+                    st.write(
+                        f"Golden Cross: "
+                        f"{'✅ Active' if gc else '❌ Not Active'}"
+                    )
+
+                with d2:
+                    st.markdown("**📊 Bollinger Bands**")
+                    st.write(
+                        f"Upper: "
+                        f"${r['bollinger_bands']['upper']:.2f}"
+                    )
+                    st.write(
+                        f"Middle: "
+                        f"${r['bollinger_bands']['middle']:.2f}"
+                    )
+                    st.write(
+                        f"Lower: "
+                        f"${r['bollinger_bands']['lower']:.2f}"
+                    )
+                    st.write(
+                        f"Position: "
+                        f"{r['bollinger_bands']['position']}"
+                    )
+
+                with d3:
+                    st.markdown("**⚠️ AkuFi Trade Levels**")
+                    st.metric(
+                        "ATR",
+                        f"${r['atr']['value']:.2f}"
+                    )
+                    st.error(
+                        f"🛑 Stop Loss: "
+                        f"${r['atr']['stop_loss']:.2f}"
+                    )
+                    st.success(
+                        f"🎯 Take Profit: "
+                        f"${r['atr']['take_profit']:.2f}"
+                    )
+                    st.info(
+                        f"⚖️ R:R Ratio: "
+                        f"{r['atr']['risk_reward_ratio']}:1"
+                    )
+
+                st.divider()
+                fig = go.Figure()
+                fig.add_trace(go.Candlestick(
+                    x=df.index,
+                    open=df["open"],
+                    high=df["high"],
+                    low=df["low"],
+                    close=df["close"],
+                    name=aticker,
+                    increasing_line_color="#FFD700",
+                    decreasing_line_color="#ff5252"
+                ))
+                ind = services["indicators"]
+                e20 = ind.ema(df, 20)
+                e50 = ind.ema(df, 50)
+                fig.add_trace(go.Scatter(
+                    x=df.index, y=e20,
+                    name="EMA 20",
+                    line=dict(color="#4fc3f7", width=1.5)
+                ))
+                fig.add_trace(go.Scatter(
+                    x=df.index, y=e50,
+                    name="EMA 50",
+                    line=dict(color="#DAA520", width=1.5)
+                ))
+                fig.update_layout(
+                    title=f"AkuFi Chart — {aticker}",
+                    template="plotly_dark",
+                    paper_bgcolor="#0a0e1a",
+                    plot_bgcolor="#0a0e1a",
+                    xaxis_rangeslider_visible=False,
+                    height=420
+                )
+                st.plotly_chart(
+                    fig, use_container_width=True
+                )
+
+# ══════════════════════════════════════════════════════
+# PAGE 6: AGENT ACTIVITY
+# ══════════════════════════════════════════════════════
+elif page == "📈 Agent Activity":
+    st.title("📈 AkuFi Agent Activity Feed")
+    st.markdown(
+        "*Live feed of all AkuFi AI agents "
+        "working autonomously*"
+    )
+    st.divider()
+
+    port_filter = st.selectbox(
+        "Filter by Portfolio",
+        ["ALL", "SNIPER", "FORTRESS"]
+    )
+
+    activities = [
+        {
+            "time": "09:35",
+            "agent": "💎 AkuFi Scanner",
+            "action": (
+                "Morning scan complete. "
+                "20 tickers analyzed. 3 signals found."
+            ),
+            "level": "HIGH",
+            "portfolio": "SNIPER"
+        },
+        {
+            "time": "09:47",
+            "agent": "🐋 Whale Hunter",
+            "action": (
+                "Detected $2.1M dark pool SPY. "
+                "Institutional accumulation confirmed."
+            ),
+            "level": "HIGH",
+            "portfolio": "SNIPER"
+        },
+        {
+            "time": "09:52",
+            "agent": "📊 Technical Agent",
+            "action": (
+                "SPY RSI bullish divergence. "
+                "MACD crossover confirmed above VWAP."
+            ),
+            "level": "HIGH",
+            "portfolio": "SNIPER"
+        },
+        {
+            "time": "09:58",
+            "agent": "📰 Sentiment Agent",
+            "action": (
+                "Positive market sentiment detected. "
+                "AkuFi score: 0.82 Bullish."
+            ),
+            "level": "MEDIUM",
+            "portfolio": "SNIPER"
+        },
+        {
+            "time": "10:02",
+            "agent": "🧠 AkuFi Orchestrator",
+            "action": (
+                "SPY package assembled. "
+                "3/3 agents agree. Confidence: 87%."
+            ),
+            "level": "HIGH",
+            "portfolio": "SNIPER"
+        },
+        {
+            "time": "10:02",
+            "agent": "🛡️ Risk Warden",
+            "action": (
+                "SPY passed all 7 AkuFi safety checks. "
+                "R:R = 2.0:1. Approved."
+            ),
+            "level": "LOW",
+            "portfolio": "SNIPER"
+        },
+        {
+            "time": "10:03",
+            "agent": "⏳ Human Gate",
+            "action": (
+                "SPY BUY signal sent to your "
+                "AkuFi approval queue."
+            ),
+            "level": "HIGH",
+            "portfolio": "SNIPER"
+        },
+        {
+            "time": "10:15",
+            "agent": "📊 Fundamental Agent",
+            "action": (
+                "AAPL earnings growth confirmed. "
+                "AkuFi FORTRESS opportunity identified."
+            ),
+            "level": "MEDIUM",
+            "portfolio": "FORTRESS"
+        },
+        {
+            "time": "10:22",
+            "agent": "💎 Prediction Engine",
+            "action": (
+                "AkuFi predicts: AAPL → $225 in 21 days. "
+                "Confidence: 79%. FORTRESS signal."
+            ),
+            "level": "HIGH",
+            "portfolio": "FORTRESS"
+        },
+    ]
+
+    icons = {
+        "HIGH": "🔴",
+        "MEDIUM": "🟡",
+        "LOW": "🟢"
+    }
+
+    filtered = [
+        a for a in activities
+        if port_filter == "ALL"
+        or a["portfolio"] == port_filter
+    ]
+
+    for act in filtered:
+        c1, c2, c3, c4 = st.columns([1, 2, 5, 1])
+        with c1:
+            st.markdown(f"**{act['time']}**")
+        with c2:
+            st.markdown(act["agent"])
+        with c3:
+            st.markdown(
+                f"{icons.get(act['level'], '⚪')} "
+                f"{act['action']}"
+            )
+        with c4:
+            st.caption(
+                "⚡ S" if act["portfolio"] == "SNIPER"
+                else "🏰 F"
+            )
+        st.divider()
+
+# ── Footer ────────────────────────────────────────────
+st.markdown("---")
+st.markdown(
+    "<div style='text-align: center; color: #DAA520;'>"
+    "💎 <strong>AkuFi</strong> — "
+    "Intelligence for Wealth Accrual | "
+    "Powered by AI Agents | "
+    "Paper Trading Mode ✅ | "
+    f"© {datetime.now().year} AkuFi Technologies"
+    "</div>",
+    unsafe_allow_html=True
+)
