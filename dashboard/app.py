@@ -14,7 +14,7 @@ from prediction_engine.predictor import PredictionEngine
 from tools.alpaca_broker import AlpacaBroker
 
 st.set_page_config(
-    page_title="AkuFinn - AI Wealth Intelligence",
+    page_title="AkuFin - AI Wealth Intelligence",
     page_icon="💎",
     layout="wide"
 )
@@ -68,11 +68,10 @@ services = get_services()
 
 # ── Sidebar ───────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## 💎 AkuFinn")
+    st.markdown("## 💎 AkuFin")
     st.markdown("*Intelligence for Wealth Accrual*")
     st.markdown(
         "<small style='color:#DAA520'>"
-        "From the Igbo word for Wealth"
         "</small>",
         unsafe_allow_html=True
     )
@@ -103,12 +102,12 @@ with st.sidebar:
     try:
         acc = services["broker"].get_account()
         st.metric(
-            "AkuFinn Portfolio",
+            "AkuFin Portfolio",
             f"${acc['portfolio_value']:,.0f}",
             f"${acc['daily_pl']:+,.2f} today"
         )
     except:
-        st.metric("AkuFinn Portfolio", "$100,000")
+        st.metric("AkuFin Portfolio", "$100,000")
 
     st.divider()
     st.caption(
@@ -127,7 +126,7 @@ if page == "🏠 Dashboard Home":
         "### AI-Powered Wealth Intelligence Platform"
     )
     st.markdown(
-        "*Aku (Igbo: Wealth) · Predictive · Autonomous · Precise*"
+        "*Aku (Wealth) · Predictive · Autonomous · Precise*"
     )
     st.divider()
 
