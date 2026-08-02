@@ -1201,4 +1201,8 @@ st.markdown(
     f"© {datetime.now().year} AkuFIN Technologies"
     "</div>",
     unsafe_allow_html=True
+<<<<<<< HEAD
 )
+=======
+)
+>>>>>>> 3d96b3a (Rebrand to AkuFi - Intelligence for Wealth Accrual)
