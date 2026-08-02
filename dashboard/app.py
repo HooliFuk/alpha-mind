@@ -14,7 +14,7 @@ from prediction_engine.predictor import PredictionEngine
 from tools.alpaca_broker import AlpacaBroker
 
 st.set_page_config(
-    page_title="AkuFin - AI Wealth Intelligence",
+    page_title="AkuFIN - AI Wealth Intelligence",
     page_icon="💎",
     layout="wide"
 )
@@ -68,7 +68,7 @@ services = get_services()
 
 # ── Sidebar ───────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## 💎 AkuFin")
+    st.markdown("## 💎 AkuFIN")
     st.markdown("*Intelligence for Wealth Accrual*")
     st.markdown(
         "<small style='color:#DAA520'>"
@@ -102,12 +102,12 @@ with st.sidebar:
     try:
         acc = services["broker"].get_account()
         st.metric(
-            "AkuFin Portfolio",
+            "AkuFIN Portfolio",
             f"${acc['portfolio_value']:,.0f}",
             f"${acc['daily_pl']:+,.2f} today"
         )
     except:
-        st.metric("AkuFin Portfolio", "$100,000")
+        st.metric("AkuFIN Portfolio", "$100,000")
 
     st.divider()
     st.caption(
@@ -121,7 +121,7 @@ with st.sidebar:
 # PAGE 0: DASHBOARD HOME
 # ══════════════════════════════════════════════════════
 if page == "🏠 Dashboard Home":
-    st.title("💎 AkuFin")
+    st.title("💎 AkuFIN")
     st.markdown(
         "### AI-Powered Wealth Intelligence Platform"
     )
@@ -195,7 +195,7 @@ if page == "🏠 Dashboard Home":
         """)
 
     st.divider()
-    st.subheader("🎯 Recent AkuFin Predictions")
+    st.subheader("🎯 Recent AkuFIN Predictions")
     if predictions:
         for pred in predictions[:3]:
             dir_icon = (
@@ -217,7 +217,7 @@ if page == "🏠 Dashboard Home":
         )
 
     st.divider()
-    st.subheader("🤖 AkuFin Agent Status")
+    st.subheader("🤖 AkuFIN Agent Status")
     a1, a2, a3, a4, a5 = st.columns(5)
     a1.success("🐋 Whale Hunter\nActive")
     a2.success("📊 Technical\nActive")
@@ -229,14 +229,14 @@ if page == "🏠 Dashboard Home":
 # PAGE 1: AI PREDICTIONS
 # ══════════════════════════════════════════════════════
 elif page == "🎯 AI Predictions":
-    st.title("🎯 AkuFin Market Predictions")
+    st.title("🎯 AkuFIN Market Predictions")
     st.markdown(
         "*AI-generated price predictions tracked "
         "against real market outcomes*"
     )
     st.divider()
 
-    st.subheader("➕ Generate New AkuFin Prediction")
+    st.subheader("➕ Generate New AkuFIN Prediction")
     g1, g2, g3, g4 = st.columns([2, 2, 2, 1])
 
     with g1:
@@ -263,7 +263,7 @@ elif page == "🎯 AI Predictions":
 
     if gen_btn and ticker:
         with st.spinner(
-            f"AkuFin AI analyzing {ticker}..."
+            f"AkuFIN AI analyzing {ticker}..."
         ):
             result = services[
                 "predictor"
@@ -287,7 +287,7 @@ elif page == "🎯 AI Predictions":
             conf = result.get("confidence", 0) * 100
 
             st.success(
-                f"✅ AkuFin Prediction Generated for "
+                f"✅ AkuFIN Prediction Generated for "
                 f"**{result['ticker']}**"
             )
             st.markdown("---")
@@ -318,7 +318,7 @@ elif page == "🎯 AI Predictions":
             st.markdown("---")
             col_a, col_b = st.columns(2)
             with col_a:
-                st.markdown("### 💭 AkuFin AI Reasoning")
+                st.markdown("### 💭 AkuFIN AI Reasoning")
                 st.info(result.get("reasoning", "N/A"))
                 st.markdown("### 📊 Technical Summary")
                 st.write(
@@ -333,13 +333,13 @@ elif page == "🎯 AI Predictions":
                 )
 
     st.divider()
-    st.subheader("📋 AkuFin Prediction Tracker")
+    st.subheader("📋 AkuFIN Prediction Tracker")
     predictions = services["predictor"].get_all_predictions()
 
     if not predictions:
         st.info(
             "No predictions yet. "
-            "Generate your first AkuFin prediction above."
+            "Generate your first AkuFIN prediction above."
         )
     else:
         total = len(predictions)
@@ -363,7 +363,7 @@ elif page == "🎯 AI Predictions":
             if p.get("status") == "ACTIVE"
         ))
         s3.metric("Correct", correct)
-        s4.metric("AkuFin Accuracy", f"{accuracy}%")
+        s4.metric("AkuFIN Accuracy", f"{accuracy}%")
         st.divider()
 
         for pred in predictions:
@@ -427,7 +427,7 @@ elif page == "🎯 AI Predictions":
                 )
 
                 with st.expander(
-                    f"💎 Full AkuFin Analysis — {pred['ticker']}"
+                    f"💎 Full AkuFIN Analysis — {pred['ticker']}"
                 ):
                     r1, r2 = st.columns(2)
                     with r1:
@@ -455,7 +455,7 @@ elif page == "🎯 AI Predictions":
 # PAGE 2: LIVE PORTFOLIO
 # ══════════════════════════════════════════════════════
 elif page == "💼 Live Portfolio":
-    st.title("💼 AkuFin Live Portfolio")
+    st.title("💼 AkuFIN Live Portfolio")
     st.markdown(
         "*Real-time data from your Alpaca "
         "Paper Trading account*"
@@ -467,7 +467,7 @@ elif page == "💼 Live Portfolio":
     positions = summary["positions"]
     orders = summary["recent_orders"]
 
-    st.subheader("📊 AkuFin Account Overview")
+    st.subheader("📊 AkuFIN Account Overview")
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric(
         "💰 Portfolio Value",
@@ -569,9 +569,9 @@ elif page == "💼 Live Portfolio":
 # PAGE 3: PLACE PAPER TRADE
 # ══════════════════════════════════════════════════════
 elif page == "⚡ Place Paper Trade":
-    st.title("⚡ AkuFin Paper Trade Execution")
+    st.title("⚡ AkuFIN Paper Trade Execution")
     st.markdown(
-        "*Test the AkuFin execution engine with paper money*"
+        "*Test the AkuFIN execution engine with paper money*"
     )
     st.warning(
         "⚠️ **Paper Trading Mode**: "
@@ -603,14 +603,14 @@ elif page == "⚡ Place Paper Trade":
         trade_reason = st.text_area(
             "Reason for Trade",
             placeholder=(
-                "e.g. AkuFin detected strong momentum "
+                "e.g. AkuFIN detected strong momentum "
                 "breakout with RSI oversold bounce..."
             ),
             height=100
         )
 
     with col2:
-        st.subheader("📊 AkuFin Quick Analysis")
+        st.subheader("📊 AkuFIN Quick Analysis")
         if trade_ticker:
             df = services["market"].get_historical_bars(
                 trade_ticker, period="1mo"
@@ -650,7 +650,7 @@ elif page == "⚡ Place Paper Trade":
                     )
 
     st.divider()
-    st.subheader("✅ AkuFin Execution Gate")
+    st.subheader("✅ AkuFIN Execution Gate")
 
     acc = services["broker"].get_account()
     portfolio_val = acc.get("portfolio_value", 100000)
@@ -677,7 +677,7 @@ elif page == "⚡ Place Paper Trade":
 
             if pct_of_portfolio > 5:
                 st.warning(
-                    f"⚠️ AkuFin Risk Alert: Position size "
+                    f"⚠️ AkuFIN Risk Alert: Position size "
                     f"{pct_of_portfolio:.1f}% exceeds "
                     f"recommended 5% limit"
                 )
@@ -697,7 +697,7 @@ elif page == "⚡ Place Paper Trade":
 
             if execute_btn:
                 with st.spinner(
-                    f"AkuFin executing {trade_side} "
+                    f"AkuFIN executing {trade_side} "
                     f"order for {trade_ticker}..."
                 ):
                     result = services[
@@ -710,7 +710,7 @@ elif page == "⚡ Place Paper Trade":
                     )
                 if result.get("success"):
                     st.success(
-                        f"✅ AkuFin Order Executed!\n"
+                        f"✅ AkuFIN Order Executed!\n"
                         f"Order ID: {result['order_id']}\n"
                         f"Symbol: {result['symbol']}\n"
                         f"Side: {result['side']}\n"
@@ -730,10 +730,10 @@ elif page == "⚡ Place Paper Trade":
 # PAGE 4: PENDING APPROVALS
 # ══════════════════════════════════════════════════════
 elif page == "⏳ Pending Approvals":
-    st.title("⏳ AkuFin Trade Approval Gate")
+    st.title("⏳ AkuFIN Trade Approval Gate")
     st.info(
         "**Human-in-the-Loop Control**: "
-        "AkuFin AI recommends. You decide. "
+        "AkuFIN AI recommends. You decide. "
         "Every trade requires your personal approval."
     )
     st.divider()
@@ -757,10 +757,10 @@ elif page == "⏳ Pending Approvals":
                 "Sentiment ✅"
             ],
             "reasoning": (
-                "AkuFin detected strong SPY momentum above VWAP. "
+                "AkuFIN detected strong SPY momentum above VWAP. "
                 "Price above EMA20 and EMA50. "
                 "Volume confirming institutional buying. "
-                "All 3 AkuFin agents in agreement."
+                "All 3 AkuFIN agents in agreement."
             )
         },
         {
@@ -778,7 +778,7 @@ elif page == "⏳ Pending Approvals":
                 "Technical ✅"
             ],
             "reasoning": (
-                "AkuFin FORTRESS signal: AAPL at key support. "
+                "AkuFIN FORTRESS signal: AAPL at key support. "
                 "Strong earnings growth trajectory. "
                 "AI services revenue accelerating. "
                 "Long term wealth accumulation position."
@@ -787,7 +787,7 @@ elif page == "⏳ Pending Approvals":
     ]
 
     st.warning(
-        f"⏳ {len(trades)} AkuFin signals waiting "
+        f"⏳ {len(trades)} AkuFIN signals waiting "
         f"for your approval"
     )
 
@@ -807,7 +807,7 @@ elif page == "⏳ Pending Approvals":
             position_val = round(t["entry"] * t["qty"], 2)
 
             st.markdown(
-                f"### {p_icon} AkuFin {t['portfolio']} | "
+                f"### {p_icon} AkuFIN {t['portfolio']} | "
                 f"{s_icon} {t['signal']} **{t['ticker']}**"
             )
 
@@ -830,7 +830,7 @@ elif page == "⏳ Pending Approvals":
             )
 
             st.markdown(
-                f"**AkuFin Agents:** {' | '.join(t['agents'])}"
+                f"**AkuFIN Agents:** {' | '.join(t['agents'])}"
             )
             st.info(f"💎 {t['reasoning']}")
             st.caption(
@@ -846,7 +846,7 @@ elif page == "⏳ Pending Approvals":
                 use_container_width=True
             ):
                 with st.spinner(
-                    f"AkuFin executing {t['ticker']}..."
+                    f"AkuFIN executing {t['ticker']}..."
                 ):
                     result = services[
                         "broker"
@@ -854,11 +854,11 @@ elif page == "⏳ Pending Approvals":
                         symbol=t["ticker"],
                         qty=t["qty"],
                         side=t["signal"].lower(),
-                        reason="Human approved via AkuFin dashboard"
+                        reason="Human approved via AkuFIN dashboard"
                     )
                 if result.get("success"):
                     st.success(
-                        f"✅ AkuFin executed {t['ticker']}! "
+                        f"✅ AkuFIN executed {t['ticker']}! "
                         f"Order: {result['order_id']}"
                     )
                     st.balloons()
@@ -882,7 +882,7 @@ elif page == "⏳ Pending Approvals":
                 use_container_width=True
             ):
                 st.warning(
-                    "⏰ AkuFin will re-alert in 15 minutes."
+                    "⏰ AkuFIN will re-alert in 15 minutes."
                 )
 
             if b4.button(
@@ -898,7 +898,7 @@ elif page == "⏳ Pending Approvals":
 # PAGE 5: LIVE ANALYSIS
 # ══════════════════════════════════════════════════════
 elif page == "📊 Live Analysis":
-    st.title("📊 AkuFin Live Technical Analysis")
+    st.title("📊 AkuFIN Live Technical Analysis")
     st.markdown(
         "*Real-time AI-powered technical breakdown "
         "of any ticker*"
@@ -922,7 +922,7 @@ elif page == "📊 Live Analysis":
 
     if run_btn and aticker:
         with st.spinner(
-            f"AkuFin analyzing {aticker}..."
+            f"AkuFIN analyzing {aticker}..."
         ):
             df = services["market"].get_historical_bars(
                 aticker, "6mo"
@@ -938,7 +938,7 @@ elif page == "📊 Live Analysis":
                 st.error(r["error"])
             else:
                 st.subheader(
-                    f"📊 AkuFin Analysis — {aticker}"
+                    f"📊 AkuFIN Analysis — {aticker}"
                 )
                 t1, t2, t3, t4 = st.columns(4)
                 t1.metric(
@@ -996,7 +996,7 @@ elif page == "📊 Live Analysis":
                     )
 
                 with d3:
-                    st.markdown("**⚠️ AkuFin Trade Levels**")
+                    st.markdown("**⚠️ AkuFIN Trade Levels**")
                     st.metric(
                         "ATR",
                         f"${r['atr']['value']:.2f}"
@@ -1040,7 +1040,7 @@ elif page == "📊 Live Analysis":
                     line=dict(color="#DAA520", width=1.5)
                 ))
                 fig.update_layout(
-                    title=f"AkuFin Chart — {aticker}",
+                    title=f"AkuFIN Chart — {aticker}",
                     template="plotly_dark",
                     paper_bgcolor="#0a0e1a",
                     plot_bgcolor="#0a0e1a",
@@ -1055,9 +1055,9 @@ elif page == "📊 Live Analysis":
 # PAGE 6: AGENT ACTIVITY
 # ══════════════════════════════════════════════════════
 elif page == "📈 Agent Activity":
-    st.title("📈 AkuFin Agent Activity Feed")
+    st.title("📈 AkuFIN Agent Activity Feed")
     st.markdown(
-        "*Live feed of all AkuFin AI agents "
+        "*Live feed of all AkuFIN AI agents "
         "working autonomously*"
     )
     st.divider()
@@ -1070,7 +1070,7 @@ elif page == "📈 Agent Activity":
     activities = [
         {
             "time": "09:35",
-            "agent": "💎 AkuFin Scanner",
+            "agent": "💎 AkuFIN Scanner",
             "action": (
                 "Morning scan complete. "
                 "20 tickers analyzed. 3 signals found."
@@ -1103,14 +1103,14 @@ elif page == "📈 Agent Activity":
             "agent": "📰 Sentiment Agent",
             "action": (
                 "Positive market sentiment detected. "
-                "AkuFin score: 0.82 Bullish."
+                "AkuFIN score: 0.82 Bullish."
             ),
             "level": "MEDIUM",
             "portfolio": "SNIPER"
         },
         {
             "time": "10:02",
-            "agent": "🧠 AkuFin Orchestrator",
+            "agent": "🧠 AkuFIN Orchestrator",
             "action": (
                 "SPY package assembled. "
                 "3/3 agents agree. Confidence: 87%."
@@ -1122,7 +1122,7 @@ elif page == "📈 Agent Activity":
             "time": "10:02",
             "agent": "🛡️ Risk Warden",
             "action": (
-                "SPY passed all 7 AkuFin safety checks. "
+                "SPY passed all 7 AkuFIN safety checks. "
                 "R:R = 2.0:1. Approved."
             ),
             "level": "LOW",
@@ -1133,7 +1133,7 @@ elif page == "📈 Agent Activity":
             "agent": "⏳ Human Gate",
             "action": (
                 "SPY BUY signal sent to your "
-                "AkuFin approval queue."
+                "AkuFIN approval queue."
             ),
             "level": "HIGH",
             "portfolio": "SNIPER"
@@ -1143,7 +1143,7 @@ elif page == "📈 Agent Activity":
             "agent": "📊 Fundamental Agent",
             "action": (
                 "AAPL earnings growth confirmed. "
-                "AkuFin FORTRESS opportunity identified."
+                "AkuFIN FORTRESS opportunity identified."
             ),
             "level": "MEDIUM",
             "portfolio": "FORTRESS"
@@ -1152,7 +1152,7 @@ elif page == "📈 Agent Activity":
             "time": "10:22",
             "agent": "💎 Prediction Engine",
             "action": (
-                "AkuFin predicts: AAPL → $225 in 21 days. "
+                "AkuFIN predicts: AAPL → $225 in 21 days. "
                 "Confidence: 79%. FORTRESS signal."
             ),
             "level": "HIGH",
@@ -1194,11 +1194,11 @@ elif page == "📈 Agent Activity":
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: #DAA520;'>"
-    "💎 <strong>AkuFin</strong> — "
+    "💎 <strong>AkuFIN</strong> — "
     "Intelligence for Wealth Accrual | "
     "Powered by AI Agents | "
     "Paper Trading Mode ✅ | "
-    f"© {datetime.now().year} AkuFin Technologies"
+    f"© {datetime.now().year} AkuFIN Technologies"
     "</div>",
     unsafe_allow_html=True
 )
