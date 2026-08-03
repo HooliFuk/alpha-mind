@@ -1,7 +1,6 @@
 # control/access_control.py
 # AKUFIN - Intelligence for Wealth Accrual
 # Admin Access Control System
-# Works on both localhost AND Streamlit Cloud
 import hashlib
 import json
 import os
@@ -14,7 +13,7 @@ ACCESS_DB_FILE = "control/akufin_access.json"
 
 
 def _load_db() -> dict:
-    """Load access control database"""
+    """Load local access database"""
     os.makedirs("control", exist_ok=True)
     if not os.path.exists(ACCESS_DB_FILE):
         db = {
@@ -29,7 +28,7 @@ def _load_db() -> dict:
 
 
 def _save_db(db: dict):
-    """Save access control database"""
+    """Save local access database"""
     os.makedirs("control", exist_ok=True)
     with open(ACCESS_DB_FILE, "w") as f:
         json.dump(db, f, indent=2)
@@ -42,38 +41,34 @@ def _hash_key(key: str) -> str:
 
 def _load_db_from_secrets() -> dict:
     """
-    Load users from Streamlit Secrets on cloud.
+    Load from Streamlit Secrets when on cloud.
     Falls back to local file on localhost.
     """
     try:
         import streamlit as st
         if hasattr(st, 'secrets'):
-            # Try to get from secrets
             admin_hash = st.secrets.get(
                 "AKUFIN_ADMIN_HASH", ""
             )
             users_json = st.secrets.get(
                 "AKUFIN_USERS", ""
             )
-            
             if admin_hash and users_json:
                 return {
                     "users": json.loads(users_json),
                     "admin_key_hash": admin_hash,
                     "source": "streamlit_secrets"
                 }
-    except Exception as e:
+    except Exception:
         pass
-
-    # Fall back to local file
     return _load_db()
 
 
 class AKUFINAccessControl:
     """
-    AKUFIN Admin Access Control.
-    Works on localhost and Streamlit Cloud.
+    AKUFIN Admin Access Control System.
     YOU control all access.
+    Works on localhost and Streamlit Cloud.
     """
 
     def __init__(self):
@@ -84,7 +79,7 @@ class AKUFINAccessControl:
         self.db = _load_db_from_secrets()
 
     def setup_admin(self, admin_key: str) -> bool:
-        """Set admin key"""
+        """Set the admin key"""
         db = _load_db()
         db["admin_key_hash"] = _hash_key(admin_key)
         _save_db(db)
@@ -93,30 +88,29 @@ class AKUFINAccessControl:
         return True
 
     def is_admin(self, key: str) -> bool:
-    """Check if key is admin key"""
-    # Check from loaded db (works for both local and cloud)
-    stored_hash = self.db.get("admin_key_hash", "")
-    if stored_hash and stored_hash == _hash_key(key):
-        return True
-    
-    # Also check directly from secrets if on cloud
-    try:
-        import streamlit as st
-        if hasattr(st, 'secrets'):
-            cloud_hash = st.secrets.get(
-                "AKUFIN_ADMIN_HASH", ""
-            )
-            if cloud_hash and cloud_hash == _hash_key(key):
-                return True
-    except Exception:
-        pass
-    
-    return False
-        """Check if key is admin key"""
-        return (
-            self.db.get("admin_key_hash") ==
-            _hash_key(key)
+        """Check if provided key is the admin key"""
+        # Check local/secrets database
+        stored_hash = self.db.get(
+            "admin_key_hash", ""
         )
+        if stored_hash and stored_hash == _hash_key(key):
+            return True
+
+        # Also check Streamlit secrets directly
+        try:
+            import streamlit as st
+            if hasattr(st, 'secrets'):
+                cloud_hash = st.secrets.get(
+                    "AKUFIN_ADMIN_HASH", ""
+                )
+                if cloud_hash and (
+                    cloud_hash == _hash_key(key)
+                ):
+                    return True
+        except Exception:
+            pass
+
+        return False
 
     def approve_user(
         self,
@@ -163,7 +157,9 @@ class AKUFINAccessControl:
         }
 
     def revoke_user(
-        self, username: str, admin_key: str
+        self,
+        username: str,
+        admin_key: str
     ) -> dict:
         """ADMIN ONLY: Revoke user access instantly"""
         if not self.is_admin(admin_key):
@@ -193,7 +189,9 @@ class AKUFINAccessControl:
         }
 
     def check_access(
-        self, username: str, password: str
+        self,
+        username: str,
+        password: str
     ) -> dict:
         """Check if user has valid AKUFIN access"""
         self._reload()
@@ -252,7 +250,7 @@ class AKUFINAccessControl:
                 "reason": "Incorrect password."
             }
 
-        # Update last login in local file
+        # Update last login
         try:
             db = _load_db()
             if username in db["users"]:
@@ -264,7 +262,7 @@ class AKUFINAccessControl:
             pass
 
         logger.info(
-            f"AKUFIN login success: {username} "
+            f"AKUFIN login: {username} "
             f"| Role: {user.get('role')}"
         )
         return {
@@ -309,20 +307,20 @@ class AKUFINAccessControl:
         }
 
     def get_all_users(self, admin_key: str) -> list:
-        """ADMIN ONLY: Get all users"""
+        """ADMIN ONLY: Get all users and status"""
         if not self.is_admin(admin_key):
             return []
 
         self._reload()
         users = []
-        for username, data in self.db.get(
+        for uname, data in self.db.get(
             "users", {}
         ).items():
             expires = datetime.fromisoformat(
                 data.get("expires", "2000-01-01")
             )
             users.append({
-                "username": username,
+                "username": uname,
                 "role": data.get("role"),
                 "active": data.get("active"),
                 "approved_at": data.get("approved_at"),
@@ -338,7 +336,7 @@ class AKUFINAccessControl:
         admin_key: str,
         extra_days: int = 30
     ) -> dict:
-        """ADMIN ONLY: Extend user access"""
+        """ADMIN ONLY: Extend user access period"""
         if not self.is_admin(admin_key):
             return {
                 "success": False,
