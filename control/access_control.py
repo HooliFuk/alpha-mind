@@ -1,7 +1,7 @@
 # control/access_control.py
 # AKUFIN - Intelligence for Wealth Accrual
 # Admin Access Control System
-# YOU control who sees your platform. Always.
+# Works on both localhost AND Streamlit Cloud
 import hashlib
 import json
 import os
@@ -10,16 +10,13 @@ from monitoring.logger import get_logger
 
 logger = get_logger(__name__)
 
-# ── AKUFIN ACCESS CONTROL DATABASE ───────────────────
-# This file stores user access data locally
 ACCESS_DB_FILE = "control/akufin_access.json"
 
 
 def _load_db() -> dict:
-    """Load the access control database"""
+    """Load access control database"""
     os.makedirs("control", exist_ok=True)
     if not os.path.exists(ACCESS_DB_FILE):
-        # Create fresh database with admin only
         db = {
             "users": {},
             "admin_key_hash": "",
@@ -32,7 +29,7 @@ def _load_db() -> dict:
 
 
 def _save_db(db: dict):
-    """Save the access control database"""
+    """Save access control database"""
     os.makedirs("control", exist_ok=True)
     with open(ACCESS_DB_FILE, "w") as f:
         json.dump(db, f, indent=2)
@@ -43,32 +40,58 @@ def _hash_key(key: str) -> str:
     return hashlib.sha256(key.encode()).hexdigest()
 
 
+def _load_db_from_secrets() -> dict:
+    """
+    Load users from Streamlit Secrets.
+    Used when running on Streamlit Cloud.
+    Falls back to local file on localhost.
+    """
+    try:
+        import streamlit as st
+
+        # Check if running on Streamlit Cloud
+        if hasattr(st, 'secrets') and "AKUFIN_USERS" in st.secrets:
+            users_json = st.secrets["AKUFIN_USERS"]
+            admin_hash = st.secrets.get(
+                "AKUFIN_ADMIN_HASH", ""
+            )
+            return {
+                "users": json.loads(users_json),
+                "admin_key_hash": admin_hash,
+                "source": "streamlit_secrets"
+            }
+    except Exception:
+        pass
+
+    # Fall back to local file
+    return _load_db()
+
+
 class AKUFINAccessControl:
     """
-    AKUFIN Admin Access Control System.
-
-    YOU are the only admin.
-    YOU approve who sees your platform.
-    YOU can revoke access instantly.
-    No one can bypass this system.
+    AKUFIN Admin Access Control.
+    Works on localhost and Streamlit Cloud.
+    YOU control all access.
     """
 
     def __init__(self):
-        self.db = _load_db()
+        self.db = _load_db_from_secrets()
+
+    def _reload(self):
+        """Reload database"""
+        self.db = _load_db_from_secrets()
 
     def setup_admin(self, admin_key: str) -> bool:
-        """
-        First time setup: Set your admin key.
-        Call this ONCE when you first deploy.
-        Keep your admin key secret and safe.
-        """
-        self.db["admin_key_hash"] = _hash_key(admin_key)
-        _save_db(self.db)
+        """Set admin key"""
+        db = _load_db()
+        db["admin_key_hash"] = _hash_key(admin_key)
+        _save_db(db)
+        self.db = db
         logger.info("AKUFIN admin key configured")
         return True
 
     def is_admin(self, key: str) -> bool:
-        """Check if provided key is the admin key"""
+        """Check if key is admin key"""
         return (
             self.db.get("admin_key_hash") ==
             _hash_key(key)
@@ -81,18 +104,8 @@ class AKUFINAccessControl:
         role: str = "viewer",
         expires_days: int = 30
     ) -> dict:
-        """
-        ADMIN ONLY: Approve a new user.
-        Roles:
-          viewer → Can view dashboard only
-          analyst → Can generate predictions
-          trader → Can approve trades
-        """
+        """ADMIN ONLY: Approve a new user"""
         if not self.is_admin(admin_key):
-            logger.warning(
-                f"Unauthorized approve attempt "
-                f"for {username}"
-            )
             return {
                 "success": False,
                 "error": "Invalid admin key"
@@ -102,7 +115,8 @@ class AKUFINAccessControl:
             datetime.now() + timedelta(days=expires_days)
         ).isoformat()
 
-        self.db["users"][username] = {
+        db = _load_db()
+        db["users"][username] = {
             "username": username,
             "role": role,
             "approved": True,
@@ -110,13 +124,15 @@ class AKUFINAccessControl:
             "approved_at": datetime.now().isoformat(),
             "expires": expires,
             "active": True,
-            "last_login": None
+            "last_login": None,
+            "password_hash": ""
         }
-        _save_db(self.db)
+        _save_db(db)
+        self.db = db
 
         logger.info(
-            f"AKUFIN: User approved: {username} "
-            f"| Role: {role} | Expires: {expires}"
+            f"AKUFIN user approved: {username} "
+            f"| Role: {role}"
         )
         return {
             "success": True,
@@ -128,28 +144,27 @@ class AKUFINAccessControl:
     def revoke_user(
         self, username: str, admin_key: str
     ) -> dict:
-        """
-        ADMIN ONLY: Instantly revoke user access.
-        They will be logged out immediately.
-        """
+        """ADMIN ONLY: Revoke user access instantly"""
         if not self.is_admin(admin_key):
             return {
                 "success": False,
                 "error": "Invalid admin key"
             }
 
-        if username in self.db["users"]:
-            self.db["users"][username]["active"] = False
-            self.db["users"][username]["revoked_at"] = (
+        db = _load_db()
+        if username in db["users"]:
+            db["users"][username]["active"] = False
+            db["users"][username]["revoked_at"] = (
                 datetime.now().isoformat()
             )
-            _save_db(self.db)
+            _save_db(db)
+            self.db = db
             logger.info(
-                f"AKUFIN: Access REVOKED: {username}"
+                f"AKUFIN access REVOKED: {username}"
             )
             return {
                 "success": True,
-                "message": f"{username} access revoked"
+                "message": f"{username} revoked"
             }
         return {
             "success": False,
@@ -159,48 +174,55 @@ class AKUFINAccessControl:
     def check_access(
         self, username: str, password: str
     ) -> dict:
-        """
-        Check if a user has valid AKUFIN access.
-        Called every time someone tries to login.
-        """
-        if username not in self.db["users"]:
+        """Check if user has valid AKUFIN access"""
+        self._reload()
+        users = self.db.get("users", {})
+
+        if username not in users:
             logger.warning(
-                f"AKUFIN: Unknown user login: {username}"
+                f"AKUFIN: Unknown user: {username}"
             )
             return {
                 "allowed": False,
-                "reason": "User not found. "
-                          "Contact AKUFIN admin for access."
+                "reason": (
+                    "User not found. "
+                    "Contact AKUFIN admin for access."
+                )
             }
 
-        user = self.db["users"][username]
+        user = users[username]
 
         if not user.get("active", False):
-            logger.warning(
-                f"AKUFIN: Revoked user attempt: {username}"
-            )
             return {
                 "allowed": False,
-                "reason": "Your AKUFIN access has been revoked."
+                "reason": (
+                    "Your AKUFIN access has been revoked."
+                )
             }
 
-        # Check expiry
         expires = datetime.fromisoformat(
             user.get("expires", "2000-01-01")
         )
         if datetime.now() > expires:
-            logger.warning(
-                f"AKUFIN: Expired access: {username}"
-            )
             return {
                 "allowed": False,
-                "reason": "Your AKUFIN access has expired."
+                "reason": (
+                    "Your AKUFIN access has expired. "
+                    "Contact admin to renew."
+                )
             }
 
-        # Check password hash
-        if _hash_key(password) != user.get(
-            "password_hash", ""
-        ):
+        stored_hash = user.get("password_hash", "")
+        if not stored_hash:
+            return {
+                "allowed": False,
+                "reason": (
+                    "Password not set. "
+                    "Contact AKUFIN admin."
+                )
+            }
+
+        if _hash_key(password) != stored_hash:
             logger.warning(
                 f"AKUFIN: Wrong password: {username}"
             )
@@ -209,14 +231,19 @@ class AKUFINAccessControl:
                 "reason": "Incorrect password."
             }
 
-        # Update last login
-        self.db["users"][username]["last_login"] = (
-            datetime.now().isoformat()
-        )
-        _save_db(self.db)
+        # Update last login in local file
+        try:
+            db = _load_db()
+            if username in db["users"]:
+                db["users"][username][
+                    "last_login"
+                ] = datetime.now().isoformat()
+                _save_db(db)
+        except Exception:
+            pass
 
         logger.info(
-            f"AKUFIN: Login success: {username} "
+            f"AKUFIN login success: {username} "
             f"| Role: {user.get('role')}"
         )
         return {
@@ -232,26 +259,28 @@ class AKUFINAccessControl:
         password: str,
         admin_key: str
     ) -> dict:
-        """ADMIN ONLY: Set or reset a user's password"""
+        """ADMIN ONLY: Set user password"""
         if not self.is_admin(admin_key):
             return {
                 "success": False,
                 "error": "Invalid admin key"
             }
 
-        if username not in self.db["users"]:
+        db = _load_db()
+        if username not in db["users"]:
             return {
                 "success": False,
                 "error": "User not found"
             }
 
-        self.db["users"][username][
+        db["users"][username][
             "password_hash"
         ] = _hash_key(password)
-        _save_db(self.db)
+        _save_db(db)
+        self.db = db
 
         logger.info(
-            f"AKUFIN: Password set for: {username}"
+            f"AKUFIN password set: {username}"
         )
         return {
             "success": True,
@@ -259,12 +288,15 @@ class AKUFINAccessControl:
         }
 
     def get_all_users(self, admin_key: str) -> list:
-        """ADMIN ONLY: See all users and their status"""
+        """ADMIN ONLY: Get all users"""
         if not self.is_admin(admin_key):
             return []
 
+        self._reload()
         users = []
-        for username, data in self.db["users"].items():
+        for username, data in self.db.get(
+            "users", {}
+        ).items():
             expires = datetime.fromisoformat(
                 data.get("expires", "2000-01-01")
             )
@@ -285,36 +317,34 @@ class AKUFINAccessControl:
         admin_key: str,
         extra_days: int = 30
     ) -> dict:
-        """ADMIN ONLY: Extend a user's access period"""
+        """ADMIN ONLY: Extend user access"""
         if not self.is_admin(admin_key):
             return {
                 "success": False,
                 "error": "Invalid admin key"
             }
 
-        if username not in self.db["users"]:
+        db = _load_db()
+        if username not in db["users"]:
             return {
                 "success": False,
                 "error": "User not found"
             }
 
-        current_expires = datetime.fromisoformat(
-            self.db["users"][username].get(
+        current = datetime.fromisoformat(
+            db["users"][username].get(
                 "expires",
                 datetime.now().isoformat()
             )
         )
         new_expires = (
-            current_expires + timedelta(days=extra_days)
+            current + timedelta(days=extra_days)
         ).isoformat()
 
-        self.db["users"][username]["expires"] = new_expires
-        _save_db(self.db)
+        db["users"][username]["expires"] = new_expires
+        _save_db(db)
+        self.db = db
 
-        logger.info(
-            f"AKUFIN: Access extended: {username} "
-            f"→ {new_expires}"
-        )
         return {
             "success": True,
             "username": username,
