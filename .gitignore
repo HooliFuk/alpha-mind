@@ -1,12 +1,61 @@
-﻿.env
+﻿# ══════════════════════════════════════════════
+# AKUFIN - Intelligence for Wealth Accrual
+# .gitignore - Files NEVER pushed to GitHub
+# ══════════════════════════════════════════════
+
+# ── AKUFIN Security (CRITICAL) ────────────────
+setup_admin.py
+control/akufin_access.json
+akufin_access.json
+
+# ── API Keys & Secrets ─────────────────────────
+.env
 .env.example
+*.key
+*.secret
+secrets.toml
+.streamlit/secrets.toml
+
+# ── Python ────────────────────────────────────
 venv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+
+# ── Database Files ────────────────────────────
 *.db
+*.sqlite
+*.sqlite3
+alphatrader.db
+akufin.db
+
+# ── Log Files ─────────────────────────────────
 logs/
 *.log
+
+# ── Test Files ────────────────────────────────
+test_*.py
+setup_admin.py
+
+# ── Model Files ───────────────────────────────
+models/saved/*.pkl
+models/saved/*.joblib
+models/saved/*.h5
+
+# ── IDE & System ──────────────────────────────
+.DS_Store
+.vscode/settings.json
+*.swp
+Thumbs.db
+
+# ── Claude & Agent Tools ──────────────────────
 .agents/
 .claude/
-test_*.py
-alphatrader.db
+.devcontainer/
+
+# ── Temporary Files ───────────────────────────
+*.tmp
+*.temp
+*.bak
