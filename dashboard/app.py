@@ -98,6 +98,73 @@ def get_services():
 # AKUFIN LOGIN PAGE
 # ══════════════════════════════════════════════════════
 def show_login_page():
+    """AKUFIN Access Gate"""
+    st.markdown("""
+    <div class='akufin-header'>
+        <h1>💎 AKUFIN</h1>
+        <h3>Intelligence for Wealth Accrual</h3>
+        <p style='color:#DAA520'>
+            <em>From the Igbo word for Wealth</em>
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("### 🔐 Secure Access")
+        st.caption("AKUFIN is a private platform. Contact the administrator for access.")
+
+        username = st.text_input("Username", placeholder="Enter your AKUFIN username")
+        password = st.text_input("Password", type="password", placeholder="Enter your password")
+
+        if st.button("💎 Access AKUFIN", use_container_width=True, type="primary"):
+            if not username or not password:
+                st.error("Please enter username and password.")
+                return
+
+            # --- 1. PRIORITY: ADMIN KEY CHECK ---
+            # If username is admin, check against the ADMIN_HASH
+            if username.lower() == "admin":
+                if access.is_admin(password):
+                    st.session_state["logged_in"] = True
+                    st.session_state["username"] = "admin"
+                    st.session_state["role"] = "admin"
+                    st.success("✅ Welcome, AKUFIN Administrator!")
+                    st.rerun()
+                    return
+                else:
+                    # If username is admin but password fails, check DB just in case
+                    result = access.check_access(username, password)
+                    if result["allowed"]:
+                        st.session_state["logged_in"] = True
+                        st.session_state["username"] = username
+                        st.session_state["role"] = result["role"]
+                        st.rerun()
+                        return
+                    
+                    st.error("❌ Invalid Admin Key.")
+                    return
+
+            # --- 2. REGULAR USER CHECK ---
+            result = access.check_access(username, password)
+            if result["allowed"]:
+                st.session_state["logged_in"] = True
+                st.session_state["username"] = username
+                st.session_state["role"] = result["role"]
+                st.success(f"✅ Welcome to AKUFIN, {username}!")
+                st.rerun()
+            else:
+                st.error(f"❌ {result['reason']}")
+
+    st.markdown("---")
+    st.markdown(
+        "<div style='text-align:center;color:#DAA520'>"
+        "💎 AKUFIN Technologies | Private & Confidential | "
+        f"© {datetime.now().year}</div>",
+        unsafe_allow_html=True
+    )
     """AKUFIN Access Gate - Clean Fixed Version"""
     st.markdown("""
     <div class='akufin-header'>
