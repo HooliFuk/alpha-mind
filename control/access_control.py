@@ -42,25 +42,27 @@ def _hash_key(key: str) -> str:
 
 def _load_db_from_secrets() -> dict:
     """
-    Load users from Streamlit Secrets.
-    Used when running on Streamlit Cloud.
+    Load users from Streamlit Secrets on cloud.
     Falls back to local file on localhost.
     """
     try:
         import streamlit as st
-
-        # Check if running on Streamlit Cloud
-        if hasattr(st, 'secrets') and "AKUFIN_USERS" in st.secrets:
-            users_json = st.secrets["AKUFIN_USERS"]
+        if hasattr(st, 'secrets'):
+            # Try to get from secrets
             admin_hash = st.secrets.get(
                 "AKUFIN_ADMIN_HASH", ""
             )
-            return {
-                "users": json.loads(users_json),
-                "admin_key_hash": admin_hash,
-                "source": "streamlit_secrets"
-            }
-    except Exception:
+            users_json = st.secrets.get(
+                "AKUFIN_USERS", ""
+            )
+            
+            if admin_hash and users_json:
+                return {
+                    "users": json.loads(users_json),
+                    "admin_key_hash": admin_hash,
+                    "source": "streamlit_secrets"
+                }
+    except Exception as e:
         pass
 
     # Fall back to local file
