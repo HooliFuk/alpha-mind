@@ -91,6 +91,25 @@ class AKUFINAccessControl:
         return True
 
     def is_admin(self, key: str) -> bool:
+    """Check if key is admin key"""
+    # Check from loaded db (works for both local and cloud)
+    stored_hash = self.db.get("admin_key_hash", "")
+    if stored_hash and stored_hash == _hash_key(key):
+        return True
+    
+    # Also check directly from secrets if on cloud
+    try:
+        import streamlit as st
+        if hasattr(st, 'secrets'):
+            cloud_hash = st.secrets.get(
+                "AKUFIN_ADMIN_HASH", ""
+            )
+            if cloud_hash and cloud_hash == _hash_key(key):
+                return True
+    except Exception:
+        pass
+    
+    return False
         """Check if key is admin key"""
         return (
             self.db.get("admin_key_hash") ==
