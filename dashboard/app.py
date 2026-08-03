@@ -22,8 +22,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# ── AKUFIN Brand Colors ───────────────────────────────
-# Gold: #FFD700, Dark Gold: #DAA520, Navy: #0a0e1a
 st.markdown("""
 <style>
     .stApp {
@@ -38,9 +36,7 @@ st.markdown("""
         border-radius: 12px;
         padding: 15px;
     }
-    h1, h2, h3 {
-        color: #FFD700;
-    }
+    h1, h2, h3 { color: #FFD700; }
     .stButton > button {
         background: linear-gradient(
             90deg, #B8860B, #DAA520
@@ -83,12 +79,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
 # ── Initialize Access Control ─────────────────────────
 access = AKUFINAccessControl()
 
 
-# ── Initialize Services (cached) ─────────────────────
+# ── Initialize Services ───────────────────────────────
 @st.cache_resource
 def get_services():
     return {
@@ -100,14 +95,10 @@ def get_services():
 
 
 # ══════════════════════════════════════════════════════
-# AKUFIN LOGIN / ACCESS GATE
-# Nobody gets past this without your approval
+# AKUFIN LOGIN PAGE
 # ══════════════════════════════════════════════════════
 def show_login_page():
-    """
-    AKUFIN Access Gate.
-    No one sees the dashboard without credentials.
-    """
+    """AKUFIN Access Gate - Clean Fixed Version"""
     st.markdown("""
     <div class='akufin-header'>
         <h1>💎 AKUFIN</h1>
@@ -144,36 +135,42 @@ def show_login_page():
             type="primary"
         ):
             if not username or not password:
-                st.error("Please enter username and password.")
+                st.error(
+                    "Please enter username and password."
+                )
                 return
 
-            # Check admin login
-            # Check admin login
-if username == "admin" and access.is_admin(password):
-    st.session_state["logged_in"] = True
-    st.session_state["username"] = "admin"
-    st.session_state["role"] = "admin"
-    st.success("✅ Welcome, AKUFIN Administrator!")
-    st.rerun()
-    return
+            # Admin login check
+            if username == "admin":
+                if access.is_admin(password):
+                    st.session_state["logged_in"] = True
+                    st.session_state["username"] = "admin"
+                    st.session_state["role"] = "admin"
+                    st.success(
+                        "✅ Welcome, AKUFIN Administrator!"
+                    )
+                    st.rerun()
+                    return
+                else:
+                    result = access.check_access(
+                        username, password
+                    )
+                    if result["allowed"]:
+                        st.session_state["logged_in"] = True
+                        st.session_state["username"] = "admin"
+                        st.session_state["role"] = "admin"
+                        st.success(
+                            "✅ Welcome, AKUFIN Administrator!"
+                        )
+                        st.rerun()
+                        return
+                    else:
+                        st.error(
+                            "❌ Invalid admin credentials."
+                        )
+                        return
 
-# Also check if admin exists as regular user
-result = access.check_access(username, password)
-if result["allowed"] and result.get("role") == "admin":
-    st.session_state["logged_in"] = True
-    st.session_state["username"] = username
-    st.session_state["role"] = "admin"
-    st.success(f"✅ Welcome, AKUFIN Administrator!")
-    st.rerun()
-    return
-                st.session_state["logged_in"] = True
-                st.session_state["username"] = "admin"
-                st.session_state["role"] = "admin"
-                st.success("✅ Welcome, AKUFIN Administrator!")
-                st.rerun()
-                return
-
-            # Check regular user
+            # Regular user login check
             result = access.check_access(username, password)
             if result["allowed"]:
                 st.session_state["logged_in"] = True
@@ -201,6 +198,9 @@ if result["allowed"] and result.get("role") == "admin":
     )
 
 
+# ══════════════════════════════════════════════════════
+# AKUFIN ADMIN PANEL
+# ══════════════════════════════════════════════════════
 def show_admin_panel():
     """AKUFIN Admin Control Panel"""
     st.title("🔑 AKUFIN Admin Control Panel")
@@ -234,7 +234,8 @@ def show_admin_panel():
                 for user in users:
                     status = (
                         "✅ Active"
-                        if user["active"] and not user["expired"]
+                        if user["active"]
+                        and not user["expired"]
                         else "❌ Inactive/Expired"
                     )
                     st.markdown(
@@ -248,18 +249,14 @@ def show_admin_panel():
                     st.divider()
 
     with tab2:
-        st.subheader("Approve New User")
+        st.subheader("Approve New AKUFIN User")
         new_username = st.text_input(
             "Username",
             placeholder="e.g. vc_partner_name"
         )
         new_role = st.selectbox(
             "Access Role",
-            [
-                "viewer",
-                "analyst",
-                "trader"
-            ],
+            ["viewer", "analyst", "trader"],
             help=(
                 "viewer=read only | "
                 "analyst=predictions | "
@@ -293,7 +290,7 @@ def show_admin_panel():
                     )
                     st.info(
                         "Now set their password "
-                        "in the 'Set Password' tab."
+                        "in the Set Password tab."
                     )
                 else:
                     st.error(result.get("error"))
@@ -301,17 +298,13 @@ def show_admin_panel():
     with tab3:
         st.subheader("Revoke User Access")
         st.warning(
-            "⚠️ This immediately removes access. "
-            "User will be logged out instantly."
+            "⚠️ This immediately removes access."
         )
         revoke_username = st.text_input(
             "Username to Revoke",
             placeholder="Enter exact username"
         )
-        if st.button(
-            "❌ REVOKE ACCESS",
-            type="primary"
-        ):
+        if st.button("❌ REVOKE ACCESS", type="primary"):
             if not revoke_username or not admin_key:
                 st.error(
                     "Username and admin key required."
@@ -361,15 +354,13 @@ def show_admin_panel():
 
 
 # ══════════════════════════════════════════════════════
-# MAIN APP LOGIC
+# MAIN APP - CHECK LOGIN FIRST
 # ══════════════════════════════════════════════════════
-
-# Check if logged in
 if not st.session_state.get("logged_in"):
     show_login_page()
     st.stop()
 
-# User is logged in. Load services.
+# Logged in - load services
 services = get_services()
 username = st.session_state.get("username", "user")
 role = st.session_state.get("role", "viewer")
@@ -386,7 +377,6 @@ with st.sidebar:
     )
     st.divider()
 
-    # Navigation based on role
     nav_options = ["🏠 Dashboard Home"]
 
     if role in ["viewer", "analyst", "trader", "admin"]:
@@ -405,8 +395,6 @@ with st.sidebar:
     page = st.selectbox("Navigation", nav_options)
 
     st.divider()
-
-    # Market status
     status = services["market"].get_market_status()
     if status["is_open"]:
         st.success("🟢 Market Open")
@@ -415,7 +403,6 @@ with st.sidebar:
     st.caption(f"Session: {status['session']}")
     st.divider()
 
-    # Portfolio value
     try:
         acc = services["broker"].get_account()
         st.metric(
@@ -430,7 +417,6 @@ with st.sidebar:
     st.caption(
         f"Updated: {datetime.now().strftime('%H:%M:%S')}"
     )
-
     col_r, col_l = st.columns(2)
     with col_r:
         if st.button("🔄 Refresh"):
@@ -530,7 +516,9 @@ if page == "🏠 Dashboard Home":
         for pred in predictions[:3]:
             dir_icon = (
                 "🟢"
-                if pred.get("predicted_direction") == "UP"
+                if pred.get(
+                    "predicted_direction"
+                ) == "UP"
                 else "🔴"
             )
             conf = pred.get("confidence", 0) * 100
@@ -561,7 +549,7 @@ if page == "🏠 Dashboard Home":
 elif page == "🎯 AI Predictions":
     st.title("🎯 AKUFIN Market Predictions")
     st.markdown(
-        "*AI-generated price predictions tracked "
+        "*AI-generated predictions tracked "
         "against real market outcomes*"
     )
     st.divider()
@@ -620,7 +608,7 @@ elif page == "🎯 AI Predictions":
             conf = result.get("confidence", 0) * 100
 
             st.success(
-                f"✅ AKUFIN Prediction Generated: "
+                f"✅ AKUFIN Prediction: "
                 f"**{result['ticker']}**"
             )
             st.markdown("---")
@@ -651,15 +639,17 @@ elif page == "🎯 AI Predictions":
             st.markdown("---")
             col_a, col_b = st.columns(2)
             with col_a:
-                st.markdown("### 💭 AKUFIN AI Reasoning")
+                st.markdown("### 💭 AKUFIN Reasoning")
                 st.info(result.get("reasoning", "N/A"))
                 st.markdown("### 📊 Technical Summary")
                 st.write(
                     result.get("technical_summary", "N/A")
                 )
             with col_b:
-                st.markdown("### 🚀 Market Catalysts")
-                st.success(result.get("catalysts", "N/A"))
+                st.markdown("### 🚀 Catalysts")
+                st.success(
+                    result.get("catalysts", "N/A")
+                )
                 st.markdown("### ⚠️ Risk Factors")
                 st.warning(
                     result.get("risk_factors", "N/A")
@@ -672,10 +662,7 @@ elif page == "🎯 AI Predictions":
     )
 
     if not predictions:
-        st.info(
-            "No predictions yet. "
-            "Generate your first AKUFIN prediction above."
-        )
+        st.info("No predictions yet.")
     else:
         total = len(predictions)
         resolved = sum(
@@ -692,7 +679,7 @@ elif page == "🎯 AI Predictions":
         )
 
         s1, s2, s3, s4 = st.columns(4)
-        s1.metric("Total Predictions", total)
+        s1.metric("Total", total)
         s2.metric("Active", sum(
             1 for p in predictions
             if p.get("status") == "ACTIVE"
@@ -714,7 +701,9 @@ elif page == "🎯 AI Predictions":
                 if pred.get("portfolio") == "SNIPER"
                 else "🏰"
             )
-            conf_pct = pred.get("confidence", 0) * 100
+            conf_pct = (
+                pred.get("confidence", 0) * 100
+            )
             progress = pred.get(
                 "progress_to_target_pct", 0
             )
@@ -762,13 +751,12 @@ elif page == "🎯 AI Predictions":
                 st.progress(
                     min(progress / 100, 1.0),
                     text=(
-                        f"AKUFIN Progress to target: "
-                        f"{progress:.1f}%"
+                        f"Progress: {progress:.1f}%"
                     )
                 )
 
                 with st.expander(
-                    f"💎 AKUFIN Full Analysis — "
+                    f"💎 AKUFIN Analysis — "
                     f"{pred['ticker']}"
                 ):
                     r1, r2 = st.columns(2)
@@ -780,7 +768,8 @@ elif page == "🎯 AI Predictions":
                         st.markdown("**📊 Technical:**")
                         st.write(
                             pred.get(
-                                "technical_summary", "N/A"
+                                "technical_summary",
+                                "N/A"
                             )
                         )
                     with r2:
@@ -806,7 +795,7 @@ elif page == "🎯 AI Predictions":
 elif page == "💼 Live Portfolio":
     st.title("💼 AKUFIN Live Portfolio")
     st.markdown(
-        "*Real-time data from Alpaca Paper Trading*"
+        "*Real-time Alpaca Paper Trading data*"
     )
     st.divider()
 
@@ -815,7 +804,7 @@ elif page == "💼 Live Portfolio":
     positions = summary["positions"]
     orders = summary["recent_orders"]
 
-    st.subheader("📊 AKUFIN Account Overview")
+    st.subheader("📊 Account Overview")
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric(
         "💰 Portfolio Value",
@@ -837,7 +826,7 @@ elif page == "💼 Live Portfolio":
         f"{daily_pl_pct:+.2f}%"
     )
     m5.metric(
-        "📋 Open Positions",
+        "📋 Positions",
         summary["total_positions"]
     )
 
@@ -851,8 +840,8 @@ elif page == "💼 Live Portfolio":
             p1, p2, p3, p4, p5, p6 = st.columns(6)
             p1.metric("Symbol", pos["symbol"])
             p2.metric(
-                "Quantity",
-                f"{pos['qty']:.0f} shares"
+                "Qty",
+                f"{pos['qty']:.0f}"
             )
             p3.metric(
                 "Entry",
@@ -891,79 +880,63 @@ elif page == "💼 Live Portfolio":
                         )
             st.divider()
     else:
-        st.info(
-            "📭 No open positions yet. "
-            "Use Place Paper Trade to open first trade."
-        )
+        st.info("📭 No open positions yet.")
 
     st.subheader("📜 Recent Orders")
     if orders:
         for order in orders:
             side_icon = (
                 "🟢"
-                if "buy" in str(order["side"]).lower()
+                if "buy" in str(
+                    order["side"]
+                ).lower()
                 else "🔴"
             )
             st.markdown(
                 f"{side_icon} **{order['symbol']}** | "
                 f"Qty: {order['qty']:.0f} | "
                 f"Status: {order['status']} | "
-                f"Price: ${order['filled_price']:.2f} | "
-                f"Time: {order['submitted_at']}"
+                f"Price: ${order['filled_price']:.2f}"
             )
     else:
         st.info("No recent orders.")
 
 # ══════════════════════════════════════════════════════
-# PAGE 3: PLACE PAPER TRADE (Trader/Admin Only)
+# PAGE 3: PLACE PAPER TRADE
 # ══════════════════════════════════════════════════════
 elif page == "⚡ Place Paper Trade":
     if role not in ["trader", "admin"]:
-        st.error(
-            "❌ Access denied. "
-            "Trade execution requires trader or admin role."
-        )
+        st.error("❌ Access denied.")
         st.stop()
 
     st.title("⚡ AKUFIN Paper Trade Execution")
-    st.warning(
-        "⚠️ Paper Trading Mode: "
-        "No real money. Live market prices."
-    )
+    st.warning("⚠️ Paper Trading: No real money used.")
     st.divider()
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("📝 AKUFIN Order Details")
+        st.subheader("📝 Order Details")
         trade_ticker = st.text_input(
-            "Ticker Symbol",
-            value="AAPL",
-            placeholder="e.g. NVDA, AAPL, SPY"
+            "Ticker", value="AAPL"
         ).upper().strip()
         trade_side = st.selectbox(
-            "Order Side", ["BUY", "SELL"]
+            "Side", ["BUY", "SELL"]
         )
         trade_qty = st.number_input(
-            "Quantity (shares)",
+            "Quantity",
             min_value=1, max_value=1000,
             value=5, step=1
         )
         trade_portfolio = st.selectbox(
-            "Assign to Portfolio",
-            ["SNIPER", "FORTRESS"]
+            "Portfolio", ["SNIPER", "FORTRESS"]
         )
         trade_reason = st.text_area(
-            "AKUFIN Trade Reason",
-            placeholder=(
-                "e.g. AKUFIN detected strong "
-                "momentum breakout..."
-            ),
-            height=100
+            "Reason", height=100
         )
 
     with col2:
-        st.subheader("📊 AKUFIN Quick Analysis")
+        st.subheader("📊 Quick Analysis")
         if trade_ticker:
             df = services["market"].get_historical_bars(
                 trade_ticker, period="1mo"
@@ -974,67 +947,59 @@ elif page == "⚡ Place Paper Trade":
                 ].get_full_analysis(df, trade_ticker)
                 if "error" not in analysis:
                     price = analysis["current_price"]
-                    est_value = price * trade_qty
                     st.metric(
-                        "Current Price",
-                        f"${price:.2f}"
+                        "Price", f"${price:.2f}"
                     )
                     st.metric(
-                        "Estimated Value",
-                        f"${est_value:,.2f}"
+                        "Value",
+                        f"${price * trade_qty:,.2f}"
                     )
-                    st.metric("Trend", analysis["trend"])
+                    st.metric(
+                        "Trend", analysis["trend"]
+                    )
                     st.metric(
                         "RSI",
                         f"{analysis['rsi']['value']:.1f}",
                         analysis["rsi"]["signal"]
                     )
                     st.metric(
-                        "MACD",
-                        analysis["macd"]["signal"]
-                    )
-                    st.metric(
-                        "AKUFIN Stop",
+                        "Stop",
                         f"${analysis['atr']['stop_loss']:.2f}"
                     )
                     st.metric(
-                        "AKUFIN Target",
+                        "Target",
                         f"${analysis['atr']['take_profit']:.2f}"
                     )
 
     st.divider()
-    st.subheader("✅ AKUFIN Execution Gate")
+    st.subheader("✅ Execute")
 
     acc = services["broker"].get_account()
-    portfolio_val = acc.get("portfolio_value", 100000)
+    pv = acc.get("portfolio_value", 100000)
 
     if trade_ticker and trade_qty > 0:
         try:
-            current_p = services[
+            cp = services[
                 "market"
             ].get_current_price(trade_ticker)
-            trade_value = current_p * trade_qty
-            pct = trade_value / portfolio_val * 100
+            tv = cp * trade_qty
+            pct = tv / pv * 100
 
             st.markdown(
-                f"**AKUFIN Order:** "
-                f"{trade_side} **{trade_qty}** shares of "
-                f"**{trade_ticker}** @ ~${current_p:.2f}"
-            )
-            st.markdown(
-                f"**Estimated Cost:** ${trade_value:,.2f} "
-                f"({pct:.1f}% of portfolio)"
+                f"**Order:** {trade_side} "
+                f"**{trade_qty}** {trade_ticker} "
+                f"@ ~${cp:.2f} = ${tv:,.2f} "
+                f"({pct:.1f}%)"
             )
 
             if pct > 5:
                 st.warning(
-                    f"⚠️ AKUFIN Risk Alert: "
-                    f"{pct:.1f}% exceeds 5% limit"
+                    f"⚠️ {pct:.1f}% exceeds 5% limit"
                 )
 
             c1, c2 = st.columns(2)
             with c1:
-                execute_btn = st.button(
+                exec_btn = st.button(
                     f"💎 EXECUTE {trade_side}",
                     type="primary",
                     use_container_width=True
@@ -1045,11 +1010,8 @@ elif page == "⚡ Place Paper Trade":
                     use_container_width=True
                 )
 
-            if execute_btn:
-                with st.spinner(
-                    f"AKUFIN executing {trade_side} "
-                    f"for {trade_ticker}..."
-                ):
+            if exec_btn:
+                with st.spinner("Executing..."):
                     result = services[
                         "broker"
                     ].place_market_order(
@@ -1060,38 +1022,29 @@ elif page == "⚡ Place Paper Trade":
                     )
                 if result.get("success"):
                     st.success(
-                        f"✅ AKUFIN Order Executed!\n"
-                        f"Order ID: {result['order_id']}\n"
-                        f"Symbol: {result['symbol']}\n"
-                        f"Side: {result['side']}\n"
-                        f"Qty: {result['qty']} shares\n"
-                        f"Status: {result['status']}"
+                        f"✅ Order Executed! "
+                        f"ID: {result['order_id']}"
                     )
                     st.balloons()
                 else:
                     st.error(
-                        f"❌ Failed: "
-                        f"{result.get('error', 'Unknown')}"
+                        f"❌ {result.get('error')}"
                     )
         except Exception as e:
-            st.error(f"AKUFIN Error: {e}")
+            st.error(f"Error: {e}")
 
 # ══════════════════════════════════════════════════════
-# PAGE 4: PENDING APPROVALS (Trader/Admin Only)
+# PAGE 4: PENDING APPROVALS
 # ══════════════════════════════════════════════════════
 elif page == "⏳ Pending Approvals":
     if role not in ["trader", "admin"]:
-        st.error(
-            "❌ Access denied. "
-            "Trade approvals require trader or admin role."
-        )
+        st.error("❌ Access denied.")
         st.stop()
 
     st.title("⏳ AKUFIN Trade Approval Gate")
     st.info(
-        "**AKUFIN Human-in-the-Loop**: "
-        "AI recommends. You decide. "
-        "Every trade requires your personal approval."
+        "**Human-in-the-Loop**: "
+        "AI recommends. You decide."
     )
     st.divider()
 
@@ -1119,9 +1072,8 @@ elif page == "⏳ Pending Approvals":
             ],
             "reasoning": (
                 "AKUFIN detected strong SPY momentum. "
-                "Price above VWAP, EMA20, EMA50. "
-                "Volume confirming institutional buying. "
-                "All 3 AKUFIN agents agree."
+                "All 3 agents agree. "
+                "Institutional buying confirmed."
             )
         },
         {
@@ -1139,24 +1091,22 @@ elif page == "⏳ Pending Approvals":
                 "Technical ✅"
             ],
             "reasoning": (
-                "AKUFIN FORTRESS signal: "
-                "AAPL at key support level. "
+                "AKUFIN FORTRESS: AAPL at support. "
                 "Strong earnings growth. "
-                "AI services revenue accelerating. "
                 "Long term wealth accumulation."
             )
         }
     ]
 
     st.warning(
-        f"⏳ {len(trades)} AKUFIN signals "
-        f"awaiting your approval"
+        f"⏳ {len(trades)} signals awaiting approval"
     )
 
     for i, t in enumerate(trades):
         with st.container():
             p_icon = (
-                "⚡" if t["portfolio"] == "SNIPER"
+                "⚡"
+                if t["portfolio"] == "SNIPER"
                 else "🏰"
             )
             s_icon = (
@@ -1164,19 +1114,26 @@ elif page == "⏳ Pending Approvals":
                 else "🔴"
             )
             risk = round(t["entry"] - t["stop"], 2)
-            reward = round(t["target"] - t["entry"], 2)
-            rr = round(reward / risk, 1) if risk > 0 else 0
-            pos_val = round(t["entry"] * t["qty"], 2)
+            reward = round(
+                t["target"] - t["entry"], 2
+            )
+            rr = (
+                round(reward / risk, 1)
+                if risk > 0 else 0
+            )
+            pv = round(t["entry"] * t["qty"], 2)
 
             st.markdown(
-                f"### {p_icon} AKUFIN {t['portfolio']} | "
-                f"{s_icon} {t['signal']} **{t['ticker']}**"
+                f"### {p_icon} AKUFIN "
+                f"{t['portfolio']} | "
+                f"{s_icon} {t['signal']} "
+                f"**{t['ticker']}**"
             )
 
             c1, c2, c3, c4, c5 = st.columns(5)
             c1.metric("Entry", f"${t['entry']:.2f}")
             c2.metric(
-                "Stop Loss",
+                "Stop",
                 f"${t['stop']:.2f}",
                 f"-${risk:.2f}"
             )
@@ -1192,24 +1149,21 @@ elif page == "⏳ Pending Approvals":
             )
 
             st.markdown(
-                f"**AKUFIN Agents:** "
+                f"**Agents:** "
                 f"{' | '.join(t['agents'])}"
             )
             st.info(f"💎 {t['reasoning']}")
             st.caption(
-                f"Position: {t['qty']} shares "
-                f"= ${pos_val:,.2f}"
+                f"{t['qty']} shares = ${pv:,.2f}"
             )
 
             b1, b2, b3, b4 = st.columns(4)
             if b1.button(
-                "✅ APPROVE & EXECUTE",
+                "✅ APPROVE",
                 key=f"app_{i}",
                 use_container_width=True
             ):
-                with st.spinner(
-                    f"AKUFIN executing {t['ticker']}..."
-                ):
+                with st.spinner("Executing..."):
                     result = services[
                         "broker"
                     ].place_market_order(
@@ -1217,21 +1171,17 @@ elif page == "⏳ Pending Approvals":
                         qty=t["qty"],
                         side=t["signal"].lower(),
                         reason=(
-                            f"AKUFIN approved by "
-                            f"{username}"
+                            f"Approved by {username}"
                         )
                     )
                 if result.get("success"):
                     st.success(
-                        f"✅ AKUFIN executed "
-                        f"{t['ticker']}! "
-                        f"Order: {result['order_id']}"
+                        f"✅ {t['ticker']} executed!"
                     )
                     st.balloons()
                 else:
                     st.error(
-                        f"❌ Failed: "
-                        f"{result.get('error')}"
+                        f"❌ {result.get('error')}"
                     )
 
             if b2.button(
@@ -1239,20 +1189,14 @@ elif page == "⏳ Pending Approvals":
                 key=f"rej_{i}",
                 use_container_width=True
             ):
-                st.error(
-                    f"❌ {t['ticker']} rejected "
-                    f"by {username}."
-                )
+                st.error(f"❌ {t['ticker']} rejected.")
 
             if b3.button(
                 "⏰ +15 mins",
                 key=f"wait_{i}",
                 use_container_width=True
             ):
-                st.warning(
-                    "⏰ AKUFIN will re-alert "
-                    "in 15 minutes."
-                )
+                st.warning("⏰ Re-alert in 15 mins.")
 
             if b4.button(
                 "🔍 Details",
@@ -1266,18 +1210,13 @@ elif page == "⏳ Pending Approvals":
 # PAGE 5: LIVE ANALYSIS
 # ══════════════════════════════════════════════════════
 elif page == "📊 Live Analysis":
-    st.title("📊 AKUFIN Live Technical Analysis")
-    st.markdown(
-        "*Real-time AI-powered market analysis*"
-    )
+    st.title("📊 AKUFIN Live Analysis")
     st.divider()
 
     a1, a2 = st.columns([3, 1])
     with a1:
         aticker = st.text_input(
-            "Enter Ticker Symbol",
-            value="AAPL",
-            placeholder="e.g. NVDA, TSLA, SPY"
+            "Ticker", value="AAPL"
         ).upper().strip()
     with a2:
         st.write("")
@@ -1288,9 +1227,7 @@ elif page == "📊 Live Analysis":
         )
 
     if run_btn and aticker:
-        with st.spinner(
-            f"AKUFIN analyzing {aticker}..."
-        ):
+        with st.spinner(f"Analyzing {aticker}..."):
             df = services["market"].get_historical_bars(
                 aticker, "6mo"
             )
@@ -1305,7 +1242,7 @@ elif page == "📊 Live Analysis":
                 st.error(r["error"])
             else:
                 st.subheader(
-                    f"📊 AKUFIN Analysis — {aticker}"
+                    f"📊 AKUFIN — {aticker}"
                 )
                 t1, t2, t3, t4 = st.columns(4)
                 t1.metric(
@@ -1327,9 +1264,7 @@ elif page == "📊 Live Analysis":
                 d1, d2, d3 = st.columns(3)
 
                 with d1:
-                    st.markdown(
-                        "**📈 Moving Averages**"
-                    )
+                    st.markdown("**📈 Moving Averages**")
                     st.write(
                         f"EMA 20: "
                         f"${r['moving_averages']['ema_20']:.2f}"
@@ -1347,13 +1282,11 @@ elif page == "📊 Live Analysis":
                     ]["golden_cross"]
                     st.write(
                         f"Golden Cross: "
-                        f"{'✅ Active' if gc else '❌ No'}"
+                        f"{'✅' if gc else '❌'}"
                     )
 
                 with d2:
-                    st.markdown(
-                        "**📊 Bollinger Bands**"
-                    )
+                    st.markdown("**📊 Bollinger Bands**")
                     st.write(
                         f"Upper: "
                         f"${r['bollinger_bands']['upper']:.2f}"
@@ -1372,9 +1305,7 @@ elif page == "📊 Live Analysis":
                     )
 
                 with d3:
-                    st.markdown(
-                        "**⚠️ AKUFIN Trade Levels**"
-                    )
+                    st.markdown("**⚠️ Trade Levels**")
                     st.metric(
                         "ATR",
                         f"${r['atr']['value']:.2f}"
@@ -1422,7 +1353,7 @@ elif page == "📊 Live Analysis":
                     )
                 ))
                 fig.update_layout(
-                    title=f"AKUFIN Chart — {aticker}",
+                    title=f"AKUFIN — {aticker}",
                     template="plotly_dark",
                     paper_bgcolor="#0a0e1a",
                     plot_bgcolor="#0a0e1a",
@@ -1437,15 +1368,12 @@ elif page == "📊 Live Analysis":
 # PAGE 6: AGENT ACTIVITY
 # ══════════════════════════════════════════════════════
 elif page == "📈 Agent Activity":
-    st.title("📈 AKUFIN Agent Activity Feed")
-    st.markdown(
-        "*Live feed of all AKUFIN AI agents "
-        "working autonomously*"
-    )
+    st.title("📈 AKUFIN Agent Activity")
+    st.markdown("*Live feed of AKUFIN AI agents*")
     st.divider()
 
     port_filter = st.selectbox(
-        "Filter by Portfolio",
+        "Filter",
         ["ALL", "SNIPER", "FORTRESS"]
     )
 
@@ -1454,8 +1382,8 @@ elif page == "📈 Agent Activity":
             "time": "09:35",
             "agent": "💎 AKUFIN Scanner",
             "action": (
-                "Morning scan complete. "
-                "20 tickers analyzed. 3 signals found."
+                "Morning scan: 20 tickers. "
+                "3 signals found."
             ),
             "level": "HIGH",
             "portfolio": "SNIPER"
@@ -1464,8 +1392,7 @@ elif page == "📈 Agent Activity":
             "time": "09:47",
             "agent": "🐋 Whale Hunter",
             "action": (
-                "Detected $2.1M dark pool SPY. "
-                "Institutional accumulation confirmed."
+                "$2.1M dark pool SPY detected."
             ),
             "level": "HIGH",
             "portfolio": "SNIPER"
@@ -1474,8 +1401,7 @@ elif page == "📈 Agent Activity":
             "time": "09:52",
             "agent": "📊 AKUFIN Technical",
             "action": (
-                "SPY RSI bullish divergence. "
-                "MACD crossover above VWAP confirmed."
+                "SPY RSI bullish. MACD crossover."
             ),
             "level": "HIGH",
             "portfolio": "SNIPER"
@@ -1483,60 +1409,42 @@ elif page == "📈 Agent Activity":
         {
             "time": "09:58",
             "agent": "📰 AKUFIN Sentiment",
-            "action": (
-                "Positive market sentiment. "
-                "AKUFIN score: 0.82 Bullish."
-            ),
+            "action": "Bullish sentiment: 0.82.",
             "level": "MEDIUM",
             "portfolio": "SNIPER"
         },
         {
             "time": "10:02",
             "agent": "🧠 AKUFIN Orchestrator",
-            "action": (
-                "SPY package assembled. "
-                "3/3 agents agree. Confidence: 87%."
-            ),
+            "action": "3/3 agree. SPY 87% confidence.",
             "level": "HIGH",
             "portfolio": "SNIPER"
         },
         {
             "time": "10:02",
             "agent": "🛡️ AKUFIN Risk Warden",
-            "action": (
-                "SPY passed all 7 safety checks. "
-                "R:R = 2.0:1. Approved."
-            ),
+            "action": "SPY passed all 7 checks.",
             "level": "LOW",
             "portfolio": "SNIPER"
         },
         {
             "time": "10:03",
             "agent": "⏳ AKUFIN Human Gate",
-            "action": (
-                "SPY BUY sent to approval queue. "
-                "Awaiting administrator decision."
-            ),
+            "action": "SPY BUY sent for approval.",
             "level": "HIGH",
             "portfolio": "SNIPER"
         },
         {
             "time": "10:15",
             "agent": "📊 AKUFIN Fundamental",
-            "action": (
-                "AAPL earnings growth confirmed. "
-                "FORTRESS opportunity identified."
-            ),
+            "action": "AAPL FORTRESS opportunity.",
             "level": "MEDIUM",
             "portfolio": "FORTRESS"
         },
         {
             "time": "10:22",
             "agent": "💎 AKUFIN Prediction",
-            "action": (
-                "AAPL → $225 in 21 days. "
-                "Confidence: 79%. FORTRESS signal."
-            ),
+            "action": "AAPL → $225 (21 days, 79%).",
             "level": "HIGH",
             "portfolio": "FORTRESS"
         },
@@ -1574,27 +1482,23 @@ elif page == "📈 Agent Activity":
         st.divider()
 
 # ══════════════════════════════════════════════════════
-# PAGE 7: ADMIN PANEL (Admin Only)
+# PAGE 7: ADMIN PANEL
 # ══════════════════════════════════════════════════════
 elif page == "🔑 Admin Panel":
     if role != "admin":
-        st.error(
-            "❌ Access denied. "
-            "Admin panel requires administrator role."
-        )
+        st.error("❌ Access denied.")
         st.stop()
     show_admin_panel()
 
-# ── AKUFIN Footer ─────────────────────────────────────
+# ── Footer ────────────────────────────────────────────
 st.markdown("---")
 st.markdown(
     "<div style='text-align:center;color:#DAA520'>"
     "💎 <strong>AKUFIN</strong> — "
     "Intelligence for Wealth Accrual | "
     "Powered by AI Agents | "
-    "Paper Trading Mode ✅ | "
-    f"© {datetime.now().year} AKUFIN Technologies | "
-    "Private & Confidential"
+    "Paper Trading ✅ | "
+    f"© {datetime.now().year} AKUFIN Technologies"
     "</div>",
     unsafe_allow_html=True
 )
