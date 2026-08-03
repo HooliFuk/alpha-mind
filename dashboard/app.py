@@ -148,7 +148,24 @@ def show_login_page():
                 return
 
             # Check admin login
-            if access.is_admin(password) and username == "admin":
+            # Check admin login
+if username == "admin" and access.is_admin(password):
+    st.session_state["logged_in"] = True
+    st.session_state["username"] = "admin"
+    st.session_state["role"] = "admin"
+    st.success("✅ Welcome, AKUFIN Administrator!")
+    st.rerun()
+    return
+
+# Also check if admin exists as regular user
+result = access.check_access(username, password)
+if result["allowed"] and result.get("role") == "admin":
+    st.session_state["logged_in"] = True
+    st.session_state["username"] = username
+    st.session_state["role"] = "admin"
+    st.success(f"✅ Welcome, AKUFIN Administrator!")
+    st.rerun()
+    return
                 st.session_state["logged_in"] = True
                 st.session_state["username"] = "admin"
                 st.session_state["role"] = "admin"
