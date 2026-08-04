@@ -1,10 +1,12 @@
 # prediction_engine/predictor.py
 # AKUFIN - Intelligence for Wealth Accrual
-# AI Prediction Engine with improved prompting
+# AI Prediction Engine
 import sys
 import os
 sys.path.append(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__))
+    )
 )
 
 import json
@@ -13,51 +15,17 @@ from tools.market_data import MarketDataFetcher
 from tools.indicators import TechnicalIndicators
 from tools.llm_router import get_llm_with_fallback
 from database.connection import get_session, init_db
-from database.models import Base
+from database.models import Prediction
 from monitoring.logger import get_logger
-from sqlalchemy import (
-    Column, Integer, String, Float,
-    DateTime, Text, Boolean
-)
-from sqlalchemy.sql import func
 
 logger = get_logger(__name__)
-
-
-class Prediction(Base):
-    __tablename__ = "predictions"
-
-    id = Column(
-        Integer, primary_key=True, autoincrement=True
-    )
-    ticker = Column(String(10), nullable=False)
-    current_price = Column(Float)
-    predicted_price = Column(Float)
-    predicted_direction = Column(String(10))
-    confidence = Column(Float)
-    target_date = Column(DateTime)
-    days_to_target = Column(Integer)
-    reasoning = Column(Text)
-    technical_summary = Column(Text)
-    catalysts = Column(Text)
-    risk_factors = Column(Text)
-    strategy = Column(Text)
-    portfolio = Column(String(20))
-    status = Column(String(20), default="ACTIVE")
-    actual_price_at_target = Column(Float, nullable=True)
-    prediction_correct = Column(Boolean, nullable=True)
-    accuracy_pct = Column(Float, nullable=True)
-    created_at = Column(
-        DateTime, server_default=func.now()
-    )
 
 
 class PredictionEngine:
     """
     AKUFIN AI Prediction Engine.
-    Generates specific dated price predictions.
     Portfolio-aware and time-window-aware.
-    Every prediction persists until manually deleted.
+    Predictions persist until manually deleted.
     """
 
     def __init__(self):
@@ -71,12 +39,9 @@ class PredictionEngine:
         portfolio: str = "SNIPER",
         days_ahead: int = 14
     ) -> dict:
-        """
-        Generate AKUFIN AI prediction for a ticker.
-        Results differ based on portfolio and time window.
-        """
+        """Generate AKUFIN AI prediction"""
         logger.info(
-            f"AKUFIN generating prediction: "
+            f"AKUFIN prediction: "
             f"{ticker} | {portfolio} | {days_ahead}d"
         )
 
@@ -97,135 +62,95 @@ class PredictionEngine:
             datetime.now() + timedelta(days=days_ahead)
         )
 
-        # Portfolio specific settings
+        # Portfolio context
         if portfolio == "SNIPER":
             portfolio_context = """
 SNIPER PORTFOLIO RULES:
-- This is a SHORT TERM aggressive trade
-- Target 3-8% price move maximum
-- Focus on: momentum, volume, breakouts
-- Entry timing is critical
-- Stop loss must be tight (1-2x ATR)
-- Look for: RSI bounces, MACD crossovers,
-  BB breakouts, volume spikes
-- Preferred hold time: hours to 3 days
+- SHORT TERM aggressive trade
+- Target 3-8% price move
+- Focus on momentum and breakouts
+- Tight stop loss (1-2x ATR)
+- Hold time: hours to 3 days
 """
         else:
             portfolio_context = """
 FORTRESS PORTFOLIO RULES:
-- This is a LONG TERM safe investment
-- Target 10-25% price move over weeks/months
-- Focus on: trend strength, fundamentals,
-  macro environment, sector momentum
-- Entry timing is less critical
-- Stop loss can be wider (3-4x ATR)
-- Look for: golden cross, strong uptrend,
-  price above all EMAs, healthy volume
-- Preferred hold time: weeks to months
+- LONG TERM safe investment
+- Target 10-25% price move
+- Focus on trend and fundamentals
+- Wider stop loss (3-4x ATR)
+- Hold time: weeks to months
 """
 
-        # Time window specific rules
-        if days_ahead == 7:
-            time_context = """
-7-DAY WINDOW:
-- Small move expected: 2-5% maximum
-- Focus on immediate price momentum
-- Short term catalysts only
-- Be conservative with targets
-"""
-        elif days_ahead == 14:
-            time_context = """
-14-DAY WINDOW:
-- Medium move expected: 4-10%
-- Balance momentum and fundamentals
-- Include near-term catalysts
-- Moderate confidence range
-"""
-        elif days_ahead == 21:
-            time_context = """
-21-DAY WINDOW:
-- Larger move possible: 7-15%
-- Fundamentals start to matter more
-- Include sector and macro factors
-- Higher conviction required
-"""
-        else:
-            time_context = """
-30-DAY WINDOW:
-- Full month projection: 10-25% possible
-- Macro and fundamental factors dominate
-- Technical setup must support long term trend
-- Only high conviction calls
-"""
+        # Time window context
+        time_rules = {
+            7: "7 DAYS: Small move 2-5%. Immediate momentum only.",
+            14: "14 DAYS: Medium move 4-10%. Balance momentum and fundamentals.",
+            21: "21 DAYS: Larger move 7-15%. Fundamentals matter more.",
+            30: "30 DAYS: Full month 10-25%. Macro and fundamentals dominate."
+        }
+        time_context = time_rules.get(
+            days_ahead,
+            f"{days_ahead} DAYS: Adjust target proportionally."
+        )
 
         prompt = f"""
 You are the AKUFIN AI Prediction Engine.
-You specialize in {portfolio} portfolio trades.
-Make a SPECIFIC and UNIQUE price prediction.
+Portfolio type: {portfolio}
+Make a SPECIFIC price prediction for {ticker}.
 
-═══════════════════════════════════════════
 TICKER: {ticker}
 CURRENT PRICE: ${current_price:.2f}
-ANALYSIS DATE: {datetime.now().strftime('%Y-%m-%d')}
+DATE: {datetime.now().strftime('%Y-%m-%d')}
 TARGET DATE: {target_date.strftime('%Y-%m-%d')}
-PREDICTION WINDOW: {days_ahead} days
+WINDOW: {days_ahead} days
 PORTFOLIO: {portfolio}
-═══════════════════════════════════════════
 
-TECHNICAL INDICATORS:
-━━━━━━━━━━━━━━━━━━━━
+INDICATORS:
 Trend: {analysis['trend']}
-RSI: {analysis['rsi']['value']:.1f} → {analysis['rsi']['signal']}
+RSI: {analysis['rsi']['value']:.1f} ({analysis['rsi']['signal']})
 MACD: {analysis['macd']['signal']}
-MACD Histogram: {analysis['macd']['histogram']:.4f}
+Histogram: {analysis['macd']['histogram']:.4f}
 BB Position: {analysis['bollinger_bands']['position']}
 BB Upper: ${analysis['bollinger_bands']['upper']:.2f}
 BB Lower: ${analysis['bollinger_bands']['lower']:.2f}
-EMA20: ${analysis['moving_averages']['ema_20']:.2f} → Price {'ABOVE ✅' if analysis['moving_averages']['price_above_ema20'] else 'BELOW ❌'}
-EMA50: ${analysis['moving_averages']['ema_50']:.2f} → Price {'ABOVE ✅' if analysis['moving_averages']['price_above_ema50'] else 'BELOW ❌'}
-EMA200: ${analysis['moving_averages']['ema_200']:.2f} → Price {'ABOVE ✅' if analysis['moving_averages']['price_above_ema200'] else 'BELOW ❌'}
-Golden Cross: {'YES ✅' if analysis['moving_averages']['golden_cross'] else 'NO ❌'}
-Death Cross: {'YES ⚠️' if analysis['moving_averages']['death_cross'] else 'NO ✅'}
-VWAP: ${analysis['vwap']['value']:.2f} → Price {'ABOVE ✅' if analysis['vwap']['price_above_vwap'] else 'BELOW ❌'}
-Volume Spike: {'YES - unusual activity' if analysis['volume']['volume_spike'] else 'NO - normal volume'}
-Volume Ratio: {analysis['volume']['volume_ratio']:.2f}x 20-day average
+EMA20: ${analysis['moving_averages']['ema_20']:.2f} ({'ABOVE' if analysis['moving_averages']['price_above_ema20'] else 'BELOW'})
+EMA50: ${analysis['moving_averages']['ema_50']:.2f} ({'ABOVE' if analysis['moving_averages']['price_above_ema50'] else 'BELOW'})
+EMA200: ${analysis['moving_averages']['ema_200']:.2f} ({'ABOVE' if analysis['moving_averages']['price_above_ema200'] else 'BELOW'})
+Golden Cross: {'YES' if analysis['moving_averages']['golden_cross'] else 'NO'}
+VWAP: ${analysis['vwap']['value']:.2f} ({'ABOVE' if analysis['vwap']['price_above_vwap'] else 'BELOW'})
+Volume Spike: {'YES' if analysis['volume']['volume_spike'] else 'NO'}
+Volume Ratio: {analysis['volume']['volume_ratio']:.2f}x
 ATR: ${analysis['atr']['value']:.2f}
-ATR Stop Loss: ${analysis['atr']['stop_loss']:.2f}
-ATR Take Profit: ${analysis['atr']['take_profit']:.2f}
 
 {portfolio_context}
-{time_context}
+TIME RULE: {time_context}
 
-IMPORTANT - MAKE YOUR PREDICTION SPECIFIC:
-1. predicted_price must NOT be ${current_price:.2f}
-2. Your reasoning must mention {ticker} specifically
-3. Catalysts must be real and relevant to {ticker}
-4. Do NOT copy/repeat previous predictions
-5. For SNIPER: be more aggressive on targets
-6. For FORTRESS: be more conservative and safe
+RULES:
+- predicted_price must NOT equal ${current_price:.2f}
+- reasoning must mention {ticker} specifically
+- catalysts must be real and relevant
+- confidence between 0.55 and 0.92
+- strategy must include exact price levels
 
-Output ONLY this JSON with no extra text:
+Output ONLY valid JSON:
 {{
     "predicted_price": 0.00,
     "predicted_direction": "UP",
     "confidence": 0.00,
-    "reasoning": "Specific 2-3 sentence reasoning for {ticker} based on current setup",
-    "technical_summary": "The 3 most important technical signals for this prediction",
-    "catalysts": "Specific real catalysts that could drive {ticker} to target",
-    "risk_factors": "Specific risks that could invalidate this {ticker} prediction",
+    "reasoning": "Specific reasoning for {ticker}",
+    "technical_summary": "Top 3 technical signals",
+    "catalysts": "Real catalysts for {ticker}",
+    "risk_factors": "Specific risks for {ticker}",
     "conviction_level": "LOW/MEDIUM/HIGH/VERY_HIGH",
-    "strategy": "Specific {portfolio} entry strategy with price levels"
+    "strategy": "Entry strategy with exact prices"
 }}
-
-JSON RULES:
-- predicted_price: realistic number close to ${current_price:.2f}
-- confidence: between 0.55 and 0.92 only
-- All text fields: specific to {ticker} not generic
-- strategy: include exact entry, stop and target prices
 """
 
         try:
-            llm = get_llm_with_fallback(temperature=0.3)
+            llm = get_llm_with_fallback(
+                temperature=0.3
+            )
             response = llm.invoke(prompt)
             content = response.content.strip()
 
@@ -240,14 +165,16 @@ JSON RULES:
 
             ai_output = json.loads(content)
 
-            # Validate predicted price is different
             pred_price = float(
                 ai_output["predicted_price"]
             )
+
+            # Ensure price is different
             if pred_price == current_price:
-                if ai_output.get(
-                    "predicted_direction"
-                ) == "UP":
+                direction = ai_output.get(
+                    "predicted_direction", "UP"
+                )
+                if direction == "UP":
                     pred_price = round(
                         current_price * 1.05, 2
                     )
@@ -273,7 +200,9 @@ JSON RULES:
                     "technical_summary"
                 ],
                 "catalysts": ai_output["catalysts"],
-                "risk_factors": ai_output["risk_factors"],
+                "risk_factors": ai_output[
+                    "risk_factors"
+                ],
                 "strategy": ai_output.get(
                     "strategy", ""
                 ),
@@ -313,7 +242,9 @@ JSON RULES:
                     "technical_summary"
                 ],
                 "catalysts": ai_output["catalysts"],
-                "risk_factors": ai_output["risk_factors"],
+                "risk_factors": ai_output[
+                    "risk_factors"
+                ],
                 "strategy": ai_output.get(
                     "strategy", ""
                 ),
@@ -326,19 +257,19 @@ JSON RULES:
 
         except json.JSONDecodeError as e:
             logger.error(
-                f"AKUFIN JSON parse error {ticker}: {e}"
+                f"AKUFIN JSON error {ticker}: {e}"
             )
             return {
-                "error": f"AI response parsing failed: {e}"
+                "error": f"AI parsing failed: {e}"
             }
         except Exception as e:
             logger.error(
-                f"AKUFIN prediction error {ticker}: {e}"
+                f"AKUFIN prediction error: {e}"
             )
             return {"error": str(e)}
 
     def _save_prediction(self, data: dict):
-        """Save prediction to database permanently"""
+        """Save prediction to Supabase"""
         session = get_session()
         try:
             pred = Prediction(**data)
@@ -346,31 +277,29 @@ JSON RULES:
             session.commit()
             session.refresh(pred)
             logger.info(
-                f"AKUFIN prediction saved: "
-                f"{data['ticker']} → "
-                f"${data['predicted_price']}"
+                f"AKUFIN saved: {data['ticker']} "
+                f"→ ${data['predicted_price']}"
             )
             return pred
         except Exception as e:
-            logger.error(
-                f"AKUFIN save error: {e}"
-            )
+            logger.error(f"AKUFIN save error: {e}")
             session.rollback()
             return None
         finally:
             session.close()
 
     def get_all_predictions(self) -> list:
-        """
-        Get ALL predictions from database.
-        Predictions persist until manually deleted.
-        """
+        """Get ALL predictions - never auto-deleted"""
         session = get_session()
         try:
-            preds = session.query(Prediction).order_by(
+            preds = session.query(
+                Prediction
+            ).order_by(
                 Prediction.created_at.desc()
             ).all()
-            return [self._pred_to_dict(p) for p in preds]
+            return [
+                self._pred_to_dict(p) for p in preds
+            ]
         except Exception as e:
             logger.error(
                 f"AKUFIN get predictions error: {e}"
@@ -383,36 +312,45 @@ JSON RULES:
         """Get only ACTIVE predictions"""
         session = get_session()
         try:
-            preds = session.query(Prediction).filter(
+            preds = session.query(
+                Prediction
+            ).filter(
                 Prediction.status == "ACTIVE"
             ).order_by(
                 Prediction.created_at.desc()
             ).all()
-            return [self._pred_to_dict(p) for p in preds]
+            return [
+                self._pred_to_dict(p) for p in preds
+            ]
         except Exception as e:
             logger.error(
-                f"AKUFIN active predictions error: {e}"
+                f"AKUFIN active preds error: {e}"
             )
             return []
         finally:
             session.close()
 
-    def delete_prediction(self, pred_id: int) -> bool:
+    def delete_prediction(
+        self, pred_id: int
+    ) -> bool:
         """
         Manually delete a prediction.
-        Only way predictions are removed.
+        Only way to remove predictions.
         They do NOT auto-delete.
         """
         session = get_session()
         try:
-            pred = session.query(Prediction).filter(
+            pred = session.query(
+                Prediction
+            ).filter(
                 Prediction.id == pred_id
             ).first()
             if pred:
                 session.delete(pred)
                 session.commit()
                 logger.info(
-                    f"AKUFIN prediction deleted: {pred_id}"
+                    f"AKUFIN prediction deleted: "
+                    f"{pred_id}"
                 )
                 return True
             return False
@@ -430,48 +368,43 @@ JSON RULES:
         pred_id: int,
         actual_price: float
     ) -> dict:
-        """
-        Mark a prediction as resolved.
-        Compare predicted vs actual price.
-        Updates accuracy tracking.
-        """
+        """Mark prediction resolved and track accuracy"""
         session = get_session()
         try:
-            pred = session.query(Prediction).filter(
+            pred = session.query(
+                Prediction
+            ).filter(
                 Prediction.id == pred_id
             ).first()
 
             if not pred:
                 return {
                     "success": False,
-                    "error": "Prediction not found"
+                    "error": "Not found"
                 }
 
             pred.actual_price_at_target = actual_price
             pred.status = "RESOLVED"
 
-            pred_price = pred.predicted_price
             direction = pred.predicted_direction
-            start_price = pred.current_price
+            pred_price = pred.predicted_price
 
-            if direction == "UP":
-                correct = actual_price >= pred_price
-            else:
-                correct = actual_price <= pred_price
+            correct = (
+                actual_price >= pred_price
+                if direction == "UP"
+                else actual_price <= pred_price
+            )
 
             pred.prediction_correct = correct
             pred.accuracy_pct = round(
-                abs(
-                    actual_price - pred_price
-                ) / pred_price * 100, 2
+                abs(actual_price - pred_price)
+                / pred_price * 100, 2
             )
 
             session.commit()
-
             logger.info(
-                f"AKUFIN prediction resolved: "
-                f"{pred.ticker} | "
-                f"Correct: {correct}"
+                f"AKUFIN resolved: {pred.ticker} "
+                f"| Correct: {correct}"
             )
 
             return {
@@ -479,8 +412,7 @@ JSON RULES:
                 "ticker": pred.ticker,
                 "predicted": pred_price,
                 "actual": actual_price,
-                "correct": correct,
-                "accuracy_pct": pred.accuracy_pct
+                "correct": correct
             }
 
         except Exception as e:
@@ -488,12 +420,15 @@ JSON RULES:
                 f"AKUFIN resolve error: {e}"
             )
             session.rollback()
-            return {"success": False, "error": str(e)}
+            return {
+                "success": False,
+                "error": str(e)
+            }
         finally:
             session.close()
 
     def _pred_to_dict(self, p: Prediction) -> dict:
-        """Convert Prediction model to dict"""
+        """Convert Prediction model to dictionary"""
         try:
             current_price = (
                 self.market_data.get_current_price(
@@ -559,10 +494,14 @@ JSON RULES:
             "status": p.status or "ACTIVE",
             "price_change_so_far_pct": price_change,
             "progress_to_target_pct": progress,
-            "prediction_correct": p.prediction_correct,
+            "prediction_correct": (
+                p.prediction_correct
+            ),
             "accuracy_pct": p.accuracy_pct,
             "created_at": (
-                p.created_at.strftime("%Y-%m-%d %H:%M")
+                p.created_at.strftime(
+                    "%Y-%m-%d %H:%M"
+                )
                 if p.created_at else ""
             )
         }

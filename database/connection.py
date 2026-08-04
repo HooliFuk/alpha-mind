@@ -1,6 +1,6 @@
 # database/connection.py
 # AKUFIN - Intelligence for Wealth Accrual
-# Database Connection - Supabase PostgreSQL
+# Database Connection Manager
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
@@ -13,13 +13,11 @@ Base = declarative_base()
 
 def get_database_url() -> str:
     """
-    Get database URL from environment.
-    Works on both localhost and Streamlit Cloud.
+    Get database URL.
+    Checks environment then Streamlit secrets.
     """
-    # Try environment variable first
     db_url = os.getenv("DATABASE_URL", "")
 
-    # Try Streamlit secrets if no env var
     if not db_url:
         try:
             import streamlit as st
@@ -30,15 +28,13 @@ def get_database_url() -> str:
         except Exception:
             pass
 
-    # Fallback to SQLite if nothing found
     if not db_url:
         logger.warning(
-            "No DATABASE_URL found. "
-            "Using SQLite fallback."
+            "No DATABASE_URL found. Using SQLite."
         )
         db_url = "sqlite:///akufin.db"
 
-    # Fix Heroku/Supabase postgres:// prefix
+    # Fix postgres:// prefix for SQLAlchemy
     if db_url.startswith("postgres://"):
         db_url = db_url.replace(
             "postgres://", "postgresql://", 1
@@ -51,7 +47,6 @@ def get_engine():
     """Create database engine"""
     db_url = get_database_url()
 
-    # PostgreSQL settings
     if "postgresql" in db_url:
         engine = create_engine(
             db_url,
@@ -65,7 +60,6 @@ def get_engine():
             "AKUFIN connected to Supabase PostgreSQL"
         )
     else:
-        # SQLite settings (fallback)
         engine = create_engine(
             db_url,
             echo=False,
@@ -86,26 +80,20 @@ def get_session():
 
 def init_db():
     """
-    Initialize all database tables.
-    Creates tables if they don't exist.
-    Safe to run multiple times.
+    Initialize all AKUFIN database tables.
+    Import ALL models here to register them.
     """
     try:
-        from database.models import Base as ModelBase
+        from database.models import (
+            Base as ModelBase,
+            Trade,
+            Signal,
+            Prediction
+        )
         engine = get_engine()
         ModelBase.metadata.create_all(bind=engine)
-
-        # Also create prediction table
-        try:
-            from prediction_engine.predictor import (
-                Prediction
-            )
-            Base.metadata.create_all(bind=engine)
-        except Exception:
-            pass
-
         logger.info(
-            "AKUFIN database tables initialized"
+            "AKUFIN database tables ready"
         )
         return True
     except Exception as e:

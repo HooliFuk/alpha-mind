@@ -1,6 +1,6 @@
 # database/models.py
 # AKUFIN - Intelligence for Wealth Accrual
-# Database Models - Compatible with PostgreSQL
+# All database models in ONE place
 from sqlalchemy import (
     Column, Integer, String, Float,
     DateTime, Boolean, JSON, Text
@@ -80,7 +80,9 @@ class Prediction(Base):
     risk_factors = Column(Text)
     strategy = Column(Text)
     portfolio = Column(String(20))
-    status = Column(String(20), default="ACTIVE")
+    status = Column(
+        String(20), default="ACTIVE"
+    )
     actual_price_at_target = Column(
         Float, nullable=True
     )
