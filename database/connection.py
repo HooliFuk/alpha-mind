@@ -2,9 +2,13 @@
 # AKUFIN - Intelligence for Wealth Accrual
 # Database Connection Manager
 import os
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from monitoring.logger import get_logger
+
+# Load .env file FIRST before anything else
+load_dotenv()
 
 logger = get_logger(__name__)
 
@@ -14,8 +18,11 @@ Base = declarative_base()
 def get_database_url() -> str:
     """
     Get database URL.
-    Checks environment then Streamlit secrets.
+    Checks .env first then Streamlit secrets.
     """
+    # Load again to be safe
+    load_dotenv()
+
     db_url = os.getenv("DATABASE_URL", "")
 
     if not db_url:
@@ -34,7 +41,7 @@ def get_database_url() -> str:
         )
         db_url = "sqlite:///akufin.db"
 
-    # Fix postgres:// prefix for SQLAlchemy
+    # Fix postgres:// prefix
     if db_url.startswith("postgres://"):
         db_url = db_url.replace(
             "postgres://", "postgresql://", 1
@@ -79,10 +86,7 @@ def get_session():
 
 
 def init_db():
-    """
-    Initialize all AKUFIN database tables.
-    Import ALL models here to register them.
-    """
+    """Initialize all AKUFIN database tables"""
     try:
         from database.models import (
             Base as ModelBase,
