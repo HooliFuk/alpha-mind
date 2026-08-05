@@ -1,0 +1,54 @@
+# .github/workflows/akufin_scanner.yml
+# AKUFIN - Automated Daily Scanner
+# Runs automatically 4x per day on weekdays
+
+name: AKUFIN Daily Scanner
+
+on:
+  schedule:
+    # Pre-Market: 4:00 AM ET (9:00 AM UTC)
+    - cron: '0 9 * * 1-5'
+    # Market Open: 9:35 AM ET (2:35 PM UTC)
+    - cron: '35 14 * * 1-5'
+    # Afternoon: 2:00 PM ET (7:00 PM UTC)
+    - cron: '0 19 * * 1-5'
+    # After-Hours: 4:05 PM ET (9:05 PM UTC)
+    - cron: '5 21 * * 1-5'
+
+  workflow_dispatch:
+
+jobs:
+  run-scanner:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout AKUFIN code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run AKUFIN Scanner
+        env:
+          AI_PROVIDER: ${{ secrets.AI_PROVIDER }}
+          AI_MODEL: ${{ secrets.AI_MODEL }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          ALPACA_BASE_URL: ${{ secrets.ALPACA_BASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PAPER_TRADING: "True"
+        run: |
+          python run_scanner.py
