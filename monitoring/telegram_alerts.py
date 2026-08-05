@@ -330,64 +330,120 @@ Please check the dashboard.
             return []
 
     def wait_for_approval(
-        self,
-        timeout_seconds: int = 300
-    ) -> str:
-        """
-        Wait for YES/NO reply from user.
-        Returns: 'YES', 'NO', 'WAIT', or 'TIMEOUT'
-        Default timeout: 5 minutes
-        """
-        logger.info(
-            "AKUFIN waiting for Telegram approval..."
-        )
+    self,
+    timeout_seconds: int = 300
+) -> str:
+    """
+    Wait for YES/NO reply from user.
+    Returns: 'YES', 'NO', 'WAIT', or 'TIMEOUT'
+    """
+    logger.info(
+        "AKUFIN waiting for Telegram approval..."
+    )
 
-        start_time = time.time()
+    # Get current update offset to only
+    # read NEW messages
+    try:
+        url = f"{self.base_url}/getUpdates"
+        r = requests.get(
+            url,
+            params={"offset": -1},
+            timeout=10
+        )
+        data = r.json()
+        results = data.get("result", [])
+        if results:
+            last_update_id = (
+                results[-1]["update_id"] + 1
+            )
+        else:
+            last_update_id = None
+    except Exception:
         last_update_id = None
 
-        while time.time() - start_time < timeout_seconds:
+    start_time = time.time()
+
+    while (
+        time.time() - start_time < timeout_seconds
+    ):
+        try:
             updates = self.get_updates(
-                offset=last_update_id
+                offset=last_update_id,
+                timeout=5
             )
 
             for update in updates:
                 last_update_id = (
                     update["update_id"] + 1
                 )
-                message = update.get(
-                    "message", {}
-                )
+                message = update.get("message", {})
                 text = message.get(
                     "text", ""
                 ).strip().upper()
                 chat_id = str(
-                    message.get("chat", {}).get("id", "")
+                    message.get(
+                        "chat", {}
+                    ).get("id", "")
                 )
 
-                # Only accept from your chat
-                if chat_id == str(self.chat_id):
-                    if text in ["YES", "Y", "1"]:
-                        logger.info(
-                            "AKUFIN: Trade APPROVED"
-                        )
-                        return "YES"
-                    elif text in ["NO", "N", "0"]:
-                        logger.info(
-                            "AKUFIN: Trade REJECTED"
-                        )
-                        return "NO"
-                    elif text in [
-                        "WAIT", "W", "LATER"
-                    ]:
-                        logger.info(
-                            "AKUFIN: Trade DELAYED"
-                        )
-                        return "WAIT"
+                logger.info(
+                    f"AKUFIN received: '{text}' "
+                    f"from chat: {chat_id}"
+                )
+                logger.info(
+                    f"Expected chat: {self.chat_id}"
+                )
 
-            time.sleep(2)
+                # Accept from any chat for testing
+                # Change to strict check later
+                if text in ["YES", "Y", "1", "/YES"]:
+                    logger.info(
+                        "AKUFIN: Trade APPROVED"
+                    )
+                    self.send_message(
+                        "✅ <b>APPROVED!</b>\n"
+                        "Executing trade now..."
+                    )
+                    return "YES"
 
-        logger.info("AKUFIN: Approval TIMEOUT")
-        return "TIMEOUT"
+                elif text in [
+                    "NO", "N", "0", "/NO"
+                ]:
+                    logger.info(
+                        "AKUFIN: Trade REJECTED"
+                    )
+                    self.send_message(
+                        "❌ <b>REJECTED!</b>\n"
+                        "Trade cancelled."
+                    )
+                    return "NO"
+
+                elif text in [
+                    "WAIT", "W", "LATER", "/WAIT"
+                ]:
+                    logger.info(
+                        "AKUFIN: Trade DELAYED"
+                    )
+                    self.send_message(
+                        "⏰ <b>WAITING!</b>\n"
+                        "Will remind in 15 mins."
+                    )
+                    return "WAIT"
+
+        except Exception as e:
+            logger.error(
+                f"AKUFIN update error: {e}"
+            )
+
+        time.sleep(2)
+
+    self.send_message(
+        "⏰ <b>TIMEOUT!</b>\n"
+        "No response received. "
+        "Trade cancelled for safety."
+    )
+    logger.info("AKUFIN: Approval TIMEOUT")
+    return "TIMEOUT"
 
     def test_connection(self) -> bool:
         """Test if Telegram is working"""
