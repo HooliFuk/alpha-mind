@@ -3,6 +3,7 @@
 # Human Gate - Connects Telegram to Alpaca
 import sys
 import os
+import time
 sys.path.append(
     os.path.dirname(
         os.path.dirname(os.path.abspath(__file__))
@@ -21,10 +22,9 @@ logger = get_logger(__name__)
 class AKUFINHumanGate:
     """
     AKUFIN Human Gate.
-    The bridge between AI signals and real execution.
+    Bridge between AI signals and Alpaca execution.
     Every trade must pass through here.
-    You approve via Telegram.
-    System executes on Alpaca.
+    You approve via Telegram. System executes.
     """
 
     def __init__(self):
@@ -40,21 +40,17 @@ class AKUFINHumanGate:
     ) -> dict:
         """
         Full pipeline:
-        1. Risk check
+        1. Risk Warden check
         2. Send Telegram alert
-        3. Wait for your approval
+        3. Wait for YES/NO/WAIT
         4. Execute or reject
         5. Send confirmation
         """
         ticker = signal.get("ticker", "N/A")
-        logger.info(
-            f"AKUFIN Human Gate: {ticker}"
-        )
+        logger.info(f"AKUFIN Human Gate: {ticker}")
 
-        # Step 1: Risk Warden Check First
-        risk_result = self.risk_warden.check_all(
-            signal
-        )
+        # Step 1: Risk Check
+        risk_result = self.risk_warden.check_all(signal)
 
         if not risk_result["approved"]:
             reasons = risk_result.get(
@@ -84,15 +80,13 @@ class AKUFINHumanGate:
         )
 
         if not send_result.get("success"):
-            logger.error(
-                "AKUFIN Telegram send failed"
-            )
+            logger.error("AKUFIN Telegram send failed")
             return {
                 "status": "FAILED",
                 "reason": "Telegram send failed"
             }
 
-        # Step 3: Wait For Your Decision
+        # Step 3: Wait For Decision
         logger.info(
             "AKUFIN waiting for human decision..."
         )
@@ -116,18 +110,15 @@ class AKUFINHumanGate:
             }
 
         elif decision == "WAIT":
-            # Re-alert in 15 minutes
             logger.info(
                 f"AKUFIN: {ticker} delayed 15 mins"
             )
-            import time
-            time.sleep(900)  # 15 minutes
+            time.sleep(900)
             self.telegram.send_message(
                 f"⏰ <b>AKUFIN REMINDER</b>\n"
-                f"Still waiting on {ticker} signal.\n"
+                f"Still waiting on {ticker}.\n"
                 f"Reply YES, NO, or WAIT"
             )
-            # Wait again
             decision2 = self.telegram.wait_for_approval(
                 timeout_seconds=300
             )
@@ -146,19 +137,16 @@ class AKUFINHumanGate:
             self.telegram.send_message(
                 f"⏰ <b>AKUFIN TIMEOUT</b>\n"
                 f"{ticker} signal expired.\n"
-                f"No response received.\n"
                 f"Trade cancelled for safety."
             )
-            self._log_rejected_trade(
-                signal, "TIMEOUT"
-            )
+            self._log_rejected_trade(signal, "TIMEOUT")
             return {
                 "status": "TIMEOUT",
                 "ticker": ticker
             }
 
     def _execute_trade(self, signal: dict) -> dict:
-        """Execute the approved trade on Alpaca"""
+        """Execute approved trade on Alpaca"""
         ticker = signal.get("ticker")
         side = signal.get("signal", "BUY").lower()
         qty = signal.get("quantity", 1)
@@ -225,19 +213,19 @@ class AKUFINHumanGate:
                 "agent_reasoning": signal.get(
                     "reasoning", ""
                 ),
-                "confidence": signal.get(
-                    "confidence", 0
-                )
+                "confidence": signal.get("confidence", 0)
             })
         except Exception as e:
-            logger.error(f"AKUFIN log trade error: {e}")
+            logger.error(
+                f"AKUFIN log trade error: {e}"
+            )
 
     def _log_rejected_trade(
         self,
         signal: dict,
         status: str
     ):
-        """Log rejected/timeout trade"""
+        """Log rejected or timed out trade"""
         try:
             self.trade_repo.create_trade({
                 "ticker": signal.get("ticker"),
@@ -254,9 +242,7 @@ class AKUFINHumanGate:
                 "agent_reasoning": signal.get(
                     "reasoning", ""
                 ),
-                "confidence": signal.get(
-                    "confidence", 0
-                )
+                "confidence": signal.get("confidence", 0)
             })
         except Exception as e:
             logger.error(
@@ -264,7 +250,7 @@ class AKUFINHumanGate:
             )
 
     def send_daily_report(self):
-        """Send daily performance report"""
+        """Send end of day performance report"""
         try:
             summary = self.broker.get_portfolio_summary()
             account = summary["account"]
@@ -281,7 +267,9 @@ class AKUFINHumanGate:
             )
             resolved = sum(
                 1 for p in predictions
-                if p.get("prediction_correct") is not None
+                if p.get(
+                    "prediction_correct"
+                ) is not None
             )
             accuracy = (
                 round(correct / resolved * 100, 1)
