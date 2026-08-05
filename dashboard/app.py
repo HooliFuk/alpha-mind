@@ -3,8 +3,11 @@
 # Main Dashboard with Admin Access Control
 import sys
 import os
+import re
 sys.path.append(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__))
+    )
 )
 
 import streamlit as st
@@ -94,78 +97,33 @@ def get_services():
     }
 
 
+# ── Session Timeout ───────────────────────────────────
+def check_session_timeout():
+    """Log out user after 8 hours"""
+    login_time = st.session_state.get("login_time")
+    if login_time:
+        elapsed = (
+            datetime.now() - login_time
+        ).total_seconds() / 3600
+        if elapsed > 8:
+            st.session_state.clear()
+            st.warning(
+                "⏰ Session expired. Please login again."
+            )
+            st.rerun()
+
+
+# ── Ticker Sanitizer ──────────────────────────────────
+def sanitize_ticker(raw: str) -> str:
+    """Block SQL injection and invalid tickers"""
+    return re.sub(r'[^A-Z0-9\-\.]', '', raw.upper())[:10]
+
+
 # ══════════════════════════════════════════════════════
 # AKUFIN LOGIN PAGE
 # ══════════════════════════════════════════════════════
 def show_login_page():
-    """AKUFIN Access Gate"""
-    st.markdown("""
-    <div class='akufin-header'>
-        <h1>💎 AKUFIN</h1>
-        <h3>Intelligence for Wealth Accrual</h3>
-        <p style='color:#DAA520'>
-            <em>From the Igbo word for Wealth</em>
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown("### 🔐 Secure Access")
-        st.caption("AKUFIN is a private platform. Contact the administrator for access.")
-
-        username = st.text_input("Username", placeholder="Enter your AKUFIN username")
-        password = st.text_input("Password", type="password", placeholder="Enter your password")
-
-        if st.button("💎 Access AKUFIN", use_container_width=True, type="primary"):
-            if not username or not password:
-                st.error("Please enter username and password.")
-                return
-
-            # --- 1. PRIORITY: ADMIN KEY CHECK ---
-            # If username is admin, check against the ADMIN_HASH
-            if username.lower() == "admin":
-                if access.is_admin(password):
-                    st.session_state["logged_in"] = True
-                    st.session_state["username"] = "admin"
-                    st.session_state["role"] = "admin"
-                    st.success("✅ Welcome, AKUFIN Administrator!")
-                    st.rerun()
-                    return
-                else:
-                    # If username is admin but password fails, check DB just in case
-                    result = access.check_access(username, password)
-                    if result["allowed"]:
-                        st.session_state["logged_in"] = True
-                        st.session_state["username"] = username
-                        st.session_state["role"] = result["role"]
-                        st.rerun()
-                        return
-                    
-                    st.error("❌ Invalid Admin Key.")
-                    return
-
-            # --- 2. REGULAR USER CHECK ---
-            result = access.check_access(username, password)
-            if result["allowed"]:
-                st.session_state["logged_in"] = True
-                st.session_state["username"] = username
-                st.session_state["role"] = result["role"]
-                st.success(f"✅ Welcome to AKUFIN, {username}!")
-                st.rerun()
-            else:
-                st.error(f"❌ {result['reason']}")
-
-    st.markdown("---")
-    st.markdown(
-        "<div style='text-align:center;color:#DAA520'>"
-        "💎 AKUFIN Technologies | Private & Confidential | "
-        f"© {datetime.now().year}</div>",
-        unsafe_allow_html=True
-    )
-    """AKUFIN Access Gate - Clean Fixed Version"""
+    """AKUFIN Secure Access Gate"""
     st.markdown("""
     <div class='akufin-header'>
         <h1>💎 AKUFIN</h1>
@@ -208,11 +166,14 @@ def show_login_page():
                 return
 
             # Admin login check
-            if username == "admin":
+            if username.lower() == "admin":
                 if access.is_admin(password):
                     st.session_state["logged_in"] = True
                     st.session_state["username"] = "admin"
                     st.session_state["role"] = "admin"
+                    st.session_state[
+                        "login_time"
+                    ] = datetime.now()
                     st.success(
                         "✅ Welcome, AKUFIN Administrator!"
                     )
@@ -223,26 +184,36 @@ def show_login_page():
                         username, password
                     )
                     if result["allowed"]:
-                        st.session_state["logged_in"] = True
-                        st.session_state["username"] = "admin"
-                        st.session_state["role"] = "admin"
-                        st.success(
-                            "✅ Welcome, AKUFIN Administrator!"
-                        )
+                        st.session_state[
+                            "logged_in"
+                        ] = True
+                        st.session_state[
+                            "username"
+                        ] = "admin"
+                        st.session_state[
+                            "role"
+                        ] = "admin"
+                        st.session_state[
+                            "login_time"
+                        ] = datetime.now()
                         st.rerun()
                         return
-                    else:
-                        st.error(
-                            "❌ Invalid admin credentials."
-                        )
-                        return
+                    st.error(
+                        "❌ Invalid admin credentials."
+                    )
+                    return
 
-            # Regular user login check
-            result = access.check_access(username, password)
+            # Regular user login
+            result = access.check_access(
+                username, password
+            )
             if result["allowed"]:
                 st.session_state["logged_in"] = True
                 st.session_state["username"] = username
                 st.session_state["role"] = result["role"]
+                st.session_state[
+                    "login_time"
+                ] = datetime.now()
                 st.success(
                     f"✅ Welcome to AKUFIN, {username}!"
                 )
@@ -250,8 +221,8 @@ def show_login_page():
             else:
                 st.error(f"❌ {result['reason']}")
                 st.caption(
-                    "Need access? Contact the "
-                    "AKUFIN administrator."
+                    "Need access? "
+                    "Contact the AKUFIN administrator."
                 )
 
     st.markdown("---")
@@ -336,7 +307,6 @@ def show_admin_panel():
             max_value=365,
             value=30
         )
-
         if st.button("✅ Approve User", type="primary"):
             if not new_username or not admin_key:
                 st.error(
@@ -352,26 +322,25 @@ def show_admin_panel():
                 if result["success"]:
                     st.success(
                         f"✅ {new_username} approved! "
-                        f"Role: {new_role} | "
-                        f"Expires: {result['expires'][:10]}"
+                        f"Role: {new_role}"
                     )
                     st.info(
-                        "Now set their password "
-                        "in the Set Password tab."
+                        "Set their password in "
+                        "the Set Password tab."
                     )
                 else:
                     st.error(result.get("error"))
 
     with tab3:
         st.subheader("Revoke User Access")
-        st.warning(
-            "⚠️ This immediately removes access."
-        )
+        st.warning("⚠️ Immediately removes access.")
         revoke_username = st.text_input(
             "Username to Revoke",
             placeholder="Enter exact username"
         )
-        if st.button("❌ REVOKE ACCESS", type="primary"):
+        if st.button(
+            "❌ REVOKE ACCESS", type="primary"
+        ):
             if not revoke_username or not admin_key:
                 st.error(
                     "Username and admin key required."
@@ -398,7 +367,7 @@ def show_admin_panel():
         new_password = st.text_input(
             "New Password",
             type="password",
-            placeholder="Set their password"
+            placeholder="Minimum 8 characters"
         )
         if st.button("🔑 Set Password"):
             if not all(
@@ -427,7 +396,12 @@ if not st.session_state.get("logged_in"):
     show_login_page()
     st.stop()
 
-# Logged in - load services
+# Session timeout check
+if "login_time" not in st.session_state:
+    st.session_state["login_time"] = datetime.now()
+check_session_timeout()
+
+# Load services
 services = get_services()
 username = st.session_state.get("username", "user")
 role = st.session_state.get("role", "viewer")
@@ -477,7 +451,7 @@ with st.sidebar:
             f"${acc['portfolio_value']:,.0f}",
             f"${acc['daily_pl']:+,.2f} today"
         )
-    except:
+    except Exception:
         st.metric("AKUFIN Portfolio", "$100,000")
 
     st.divider()
@@ -625,11 +599,14 @@ elif page == "🎯 AI Predictions":
     g1, g2, g3, g4 = st.columns([2, 2, 2, 1])
 
     with g1:
-        ticker = st.text_input(
+        ticker_raw = st.text_input(
             "Ticker Symbol",
             value="NVDA",
             placeholder="e.g. AAPL, TSLA, SPY"
-        ).upper().strip()
+        )
+        ticker = sanitize_ticker(ticker_raw)
+        if ticker != ticker_raw.upper().strip():
+            st.caption(f"Using: {ticker}")
     with g2:
         portfolio = st.selectbox(
             "Portfolio", ["SNIPER", "FORTRESS"]
@@ -710,7 +687,9 @@ elif page == "🎯 AI Predictions":
                 st.info(result.get("reasoning", "N/A"))
                 st.markdown("### 📊 Technical Summary")
                 st.write(
-                    result.get("technical_summary", "N/A")
+                    result.get(
+                        "technical_summary", "N/A"
+                    )
                 )
             with col_b:
                 st.markdown("### 🚀 Catalysts")
@@ -768,9 +747,7 @@ elif page == "🎯 AI Predictions":
                 if pred.get("portfolio") == "SNIPER"
                 else "🏰"
             )
-            conf_pct = (
-                pred.get("confidence", 0) * 100
-            )
+            conf_pct = pred.get("confidence", 0) * 100
             progress = pred.get(
                 "progress_to_target_pct", 0
             )
@@ -817,9 +794,7 @@ elif page == "🎯 AI Predictions":
 
                 st.progress(
                     min(progress / 100, 1.0),
-                    text=(
-                        f"Progress: {progress:.1f}%"
-                    )
+                    text=f"Progress: {progress:.1f}%"
                 )
 
                 with st.expander(
@@ -906,10 +881,7 @@ elif page == "💼 Live Portfolio":
             plpc = pos.get("unrealized_plpc", 0)
             p1, p2, p3, p4, p5, p6 = st.columns(6)
             p1.metric("Symbol", pos["symbol"])
-            p2.metric(
-                "Qty",
-                f"{pos['qty']:.0f}"
-            )
+            p2.metric("Qty", f"{pos['qty']:.0f}")
             p3.metric(
                 "Entry",
                 f"${pos['avg_entry_price']:.2f}"
@@ -929,25 +901,104 @@ elif page == "💼 Live Portfolio":
             )
 
             if role in ["trader", "admin"]:
-                if st.button(
-                    f"❌ Close {pos['symbol']}",
-                    key=f"close_{pos['symbol']}"
-                ):
-                    result = services[
-                        "broker"
-                    ].close_position(pos["symbol"])
-                    if result["success"]:
-                        st.success(
-                            f"✅ {pos['symbol']} closed!"
-                        )
-                        st.rerun()
-                    else:
-                        st.error(
-                            f"❌ {result.get('error')}"
-                        )
+                btn_col1, btn_col2 = st.columns(2)
+                with btn_col1:
+                    if st.button(
+                        f"❌ Close {pos['symbol']}",
+                        key=f"close_{pos['symbol']}",
+                        use_container_width=True
+                    ):
+                        with st.spinner(
+                            f"Closing {pos['symbol']}..."
+                        ):
+                            result = services[
+                                "broker"
+                            ].close_position(
+                                pos["symbol"]
+                            )
+                        if result["success"]:
+                            st.success(
+                                f"✅ {pos['symbol']} "
+                                f"closed! "
+                                f"{result.get('message', '')}"
+                            )
+                            st.rerun()
+                        else:
+                            st.error(
+                                f"❌ {result.get('error')}"
+                            )
+
+                with btn_col2:
+                    if st.button(
+                        f"🚫 Cancel Orders {pos['symbol']}",
+                        key=f"cancel_{pos['symbol']}",
+                        use_container_width=True
+                    ):
+                        with st.spinner(
+                            "Cancelling orders..."
+                        ):
+                            cancelled = services[
+                                "broker"
+                            ].cancel_orders_for_symbol(
+                                pos["symbol"]
+                            )
+                        if cancelled > 0:
+                            st.success(
+                                f"✅ {cancelled} orders "
+                                f"cancelled. "
+                                f"Try closing again."
+                            )
+                            st.rerun()
+                        else:
+                            st.info(
+                                "No open orders found "
+                                "for this symbol."
+                            )
             st.divider()
     else:
         st.info("📭 No open positions yet.")
+
+    # Open Orders Section
+    st.subheader("📋 Open Orders")
+    open_orders = services["broker"].get_open_orders()
+    if open_orders:
+        for order in open_orders:
+            side_icon = (
+                "🟢"
+                if "buy" in str(
+                    order["side"]
+                ).lower()
+                else "🔴"
+            )
+            st.markdown(
+                f"{side_icon} **{order['symbol']}** | "
+                f"Type: {order['type']} | "
+                f"Qty: {order['qty']:.0f} | "
+                f"Status: {order['status']}"
+            )
+
+        if role in ["trader", "admin"]:
+            if st.button(
+                "🚫 Cancel ALL Open Orders",
+                type="primary"
+            ):
+                with st.spinner(
+                    "Cancelling all orders..."
+                ):
+                    result = services[
+                        "broker"
+                    ].cancel_all_orders()
+                if result["success"]:
+                    st.success(
+                        "✅ All orders cancelled!"
+                    )
+                    st.rerun()
+                else:
+                    st.error(
+                        f"❌ {result.get('error')}"
+                    )
+    else:
+        st.info("No open orders.")
 
     st.subheader("📜 Recent Orders")
     if orders:
@@ -984,16 +1035,21 @@ elif page == "⚡ Place Paper Trade":
 
     with col1:
         st.subheader("📝 Order Details")
-        trade_ticker = st.text_input(
+        trade_ticker_raw = st.text_input(
             "Ticker", value="AAPL"
-        ).upper().strip()
+        )
+        trade_ticker = sanitize_ticker(
+            trade_ticker_raw
+        )
         trade_side = st.selectbox(
             "Side", ["BUY", "SELL"]
         )
         trade_qty = st.number_input(
             "Quantity",
-            min_value=1, max_value=1000,
-            value=5, step=1
+            min_value=1,
+            max_value=1000,
+            value=5,
+            step=1
         )
         trade_portfolio = st.selectbox(
             "Portfolio", ["SNIPER", "FORTRESS"]
@@ -1237,9 +1293,7 @@ elif page == "⏳ Pending Approvals":
                         symbol=t["ticker"],
                         qty=t["qty"],
                         side=t["signal"].lower(),
-                        reason=(
-                            f"Approved by {username}"
-                        )
+                        reason=f"Approved by {username}"
                     )
                 if result.get("success"):
                     st.success(
@@ -1282,9 +1336,10 @@ elif page == "📊 Live Analysis":
 
     a1, a2 = st.columns([3, 1])
     with a1:
-        aticker = st.text_input(
+        aticker_raw = st.text_input(
             "Ticker", value="AAPL"
-        ).upper().strip()
+        )
+        aticker = sanitize_ticker(aticker_raw)
     with a2:
         st.write("")
         run_btn = st.button(
@@ -1294,7 +1349,9 @@ elif page == "📊 Live Analysis":
         )
 
     if run_btn and aticker:
-        with st.spinner(f"Analyzing {aticker}..."):
+        with st.spinner(
+            f"AKUFIN analyzing {aticker}..."
+        ):
             df = services["market"].get_historical_bars(
                 aticker, "6mo"
             )
@@ -1323,8 +1380,7 @@ elif page == "📊 Live Analysis":
                     r["rsi"]["signal"]
                 )
                 t4.metric(
-                    "MACD",
-                    r["macd"]["signal"]
+                    "MACD", r["macd"]["signal"]
                 )
 
                 st.divider()
@@ -1420,7 +1476,7 @@ elif page == "📊 Live Analysis":
                     )
                 ))
                 fig.update_layout(
-                    title=f"AKUFIN — {aticker}",
+                    title=f"AKUFIN Chart — {aticker}",
                     template="plotly_dark",
                     paper_bgcolor="#0a0e1a",
                     plot_bgcolor="#0a0e1a",
@@ -1440,8 +1496,7 @@ elif page == "📈 Agent Activity":
     st.divider()
 
     port_filter = st.selectbox(
-        "Filter",
-        ["ALL", "SNIPER", "FORTRESS"]
+        "Filter", ["ALL", "SNIPER", "FORTRESS"]
     )
 
     activities = [
@@ -1458,18 +1513,14 @@ elif page == "📈 Agent Activity":
         {
             "time": "09:47",
             "agent": "🐋 Whale Hunter",
-            "action": (
-                "$2.1M dark pool SPY detected."
-            ),
+            "action": "$2.1M dark pool SPY detected.",
             "level": "HIGH",
             "portfolio": "SNIPER"
         },
         {
             "time": "09:52",
             "agent": "📊 AKUFIN Technical",
-            "action": (
-                "SPY RSI bullish. MACD crossover."
-            ),
+            "action": "SPY RSI bullish. MACD crossover.",
             "level": "HIGH",
             "portfolio": "SNIPER"
         },

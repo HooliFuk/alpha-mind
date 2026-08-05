@@ -1,8 +1,13 @@
 # tools/alpaca_broker.py
+# AKUFIN - Intelligence for Wealth Accrual
+# Alpaca Broker Interface
 import sys
 import os
+import time
 sys.path.append(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__))
+    )
 )
 
 from alpaca.trading.client import TradingClient
@@ -15,10 +20,7 @@ logger = get_logger(__name__)
 
 
 def safe_float(value, default=0.0) -> float:
-    """
-    Safely convert any value to float.
-    Returns default if value is None or invalid.
-    """
+    """Safely convert any value to float"""
     try:
         if value is None:
             return default
@@ -40,14 +42,13 @@ class AlpacaBroker:
             paper=True
         )
         logger.info(
-            "Alpaca broker connected (Paper Trading)"
+            "AKUFIN Alpaca broker connected (Paper Trading)"
         )
 
     def get_account(self) -> dict:
         """Get full account details"""
         try:
             acc = self.client.get_account()
-
             equity = safe_float(acc.equity)
             last_equity = safe_float(acc.last_equity)
             daily_pl = equity - last_equity
@@ -74,7 +75,9 @@ class AlpacaBroker:
             }
 
         except Exception as e:
-            logger.error(f"Account fetch error: {e}")
+            logger.error(
+                f"AKUFIN account fetch error: {e}"
+            )
             return {
                 "status": "ERROR",
                 "portfolio_value": 100000.0,
@@ -111,17 +114,21 @@ class AlpacaBroker:
                         pos.market_value
                     ),
                     "unrealized_pl": round(unreal_pl, 2),
-                    "unrealized_plpc": round(unreal_plpc, 2),
+                    "unrealized_plpc": round(
+                        unreal_plpc, 2
+                    ),
                     "portfolio": "SNIPER"
                 })
 
             logger.info(
-                f"Fetched {len(result)} positions"
+                f"AKUFIN fetched {len(result)} positions"
             )
             return result
 
         except Exception as e:
-            logger.error(f"Positions fetch error: {e}")
+            logger.error(
+                f"AKUFIN positions fetch error: {e}"
+            )
             return []
 
     def get_orders(self, limit: int = 20) -> list:
@@ -143,15 +150,104 @@ class AlpacaBroker:
                     "submitted_at": str(
                         order.submitted_at
                     ),
-                    "filled_at": str(
-                        order.filled_at
-                    ) if order.filled_at else "Pending"
+                    "filled_at": (
+                        str(order.filled_at)
+                        if order.filled_at
+                        else "Pending"
+                    )
                 })
             return result
 
         except Exception as e:
-            logger.error(f"Orders fetch error: {e}")
+            logger.error(
+                f"AKUFIN orders fetch error: {e}"
+            )
             return []
+
+    def get_open_orders(self) -> list:
+        """Get all currently open orders"""
+        try:
+            orders = self.client.get_orders()
+            result = []
+            for order in orders:
+                if str(order.status) in [
+                    "OrderStatus.NEW",
+                    "OrderStatus.PARTIALLY_FILLED",
+                    "OrderStatus.HELD",
+                    "new",
+                    "partially_filled",
+                    "held",
+                    "accepted"
+                ]:
+                    result.append({
+                        "id": str(order.id),
+                        "symbol": order.symbol,
+                        "qty": safe_float(order.qty),
+                        "side": str(order.side),
+                        "type": str(order.type),
+                        "status": str(order.status),
+                        "submitted_at": str(
+                            order.submitted_at
+                        )
+                    })
+            return result
+        except Exception as e:
+            logger.error(
+                f"AKUFIN open orders error: {e}"
+            )
+            return []
+
+    def cancel_orders_for_symbol(
+        self, symbol: str
+    ) -> int:
+        """
+        Cancel all open orders for a specific symbol.
+        Returns number of orders cancelled.
+        """
+        cancelled = 0
+        try:
+            all_orders = self.client.get_orders()
+            for order in all_orders:
+                if order.symbol == symbol:
+                    try:
+                        self.client.cancel_order_by_id(
+                            str(order.id)
+                        )
+                        cancelled += 1
+                        logger.info(
+                            f"AKUFIN cancelled order "
+                            f"{order.id} for {symbol}"
+                        )
+                    except Exception as ce:
+                        logger.warning(
+                            f"AKUFIN cancel order warning: "
+                            f"{ce}"
+                        )
+        except Exception as e:
+            logger.error(
+                f"AKUFIN cancel orders error: {e}"
+            )
+        return cancelled
+
+    def cancel_all_orders(self) -> dict:
+        """Cancel ALL open orders"""
+        try:
+            self.client.cancel_orders()
+            logger.info(
+                "AKUFIN: All orders cancelled"
+            )
+            return {
+                "success": True,
+                "message": "All orders cancelled"
+            }
+        except Exception as e:
+            logger.error(
+                f"AKUFIN cancel all orders error: {e}"
+            )
+            return {
+                "success": False,
+                "error": str(e)
+            }
 
     def place_market_order(
         self,
@@ -175,10 +271,12 @@ class AlpacaBroker:
                 time_in_force=TimeInForce.DAY
             )
 
-            order = self.client.submit_order(order_request)
+            order = self.client.submit_order(
+                order_request
+            )
 
             logger.info(
-                f"Order placed: {side.upper()} "
+                f"AKUFIN order placed: {side.upper()} "
                 f"{qty} {symbol} | ID: {order.id}"
             )
 
@@ -194,7 +292,8 @@ class AlpacaBroker:
 
         except Exception as e:
             logger.error(
-                f"Order failed {side} {qty} {symbol}: {e}"
+                f"AKUFIN order failed "
+                f"{side} {qty} {symbol}: {e}"
             )
             return {
                 "success": False,
@@ -205,18 +304,51 @@ class AlpacaBroker:
             }
 
     def close_position(self, symbol: str) -> dict:
-        """Close an entire position"""
+        """
+        Close an entire position safely.
+        Step 1: Cancel all open orders for symbol
+        Step 2: Wait for cancellations to process
+        Step 3: Close the position
+        """
         try:
+            # Step 1: Cancel existing orders first
+            logger.info(
+                f"AKUFIN: Cancelling orders for {symbol}"
+            )
+            cancelled = self.cancel_orders_for_symbol(
+                symbol
+            )
+            logger.info(
+                f"AKUFIN: Cancelled {cancelled} "
+                f"orders for {symbol}"
+            )
+
+            # Step 2: Wait for cancellations
+            if cancelled > 0:
+                time.sleep(2)
+
+            # Step 3: Close the position
             self.client.close_position(symbol)
-            logger.info(f"Position closed: {symbol}")
-            return {"success": True, "symbol": symbol}
+            logger.info(
+                f"AKUFIN: Position closed: {symbol}"
+            )
+            return {
+                "success": True,
+                "symbol": symbol,
+                "message": (
+                    f"{symbol} position closed. "
+                    f"{cancelled} orders cancelled first."
+                )
+            }
+
         except Exception as e:
             logger.error(
-                f"Failed to close {symbol}: {e}"
+                f"AKUFIN: Failed to close {symbol}: {e}"
             )
             return {
                 "success": False,
-                "error": str(e)
+                "error": str(e),
+                "symbol": symbol
             }
 
     def get_portfolio_summary(self) -> dict:
