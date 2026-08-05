@@ -116,7 +116,24 @@ def check_session_timeout():
 # ── Ticker Sanitizer ──────────────────────────────────
 def sanitize_ticker(raw: str) -> str:
     """Block SQL injection and invalid tickers"""
-    return re.sub(r'[^A-Z0-9\-\.]', '', raw.upper())[:10]
+    if not raw:
+        return ""
+    return re.sub(
+        r'[^A-Z0-9\-\.]', '', raw.upper()
+    )[:10]
+
+
+# ── Signal Repository Loader ──────────────────────────
+@st.cache_resource
+def get_signal_repo():
+    """Get signal repository instance"""
+    try:
+        from database.signal_repository import (
+            SignalRepository
+        )
+        return SignalRepository()
+    except Exception as e:
+        return None
 
 
 # ══════════════════════════════════════════════════════
@@ -165,7 +182,6 @@ def show_login_page():
                 )
                 return
 
-            # Admin login check
             if username.lower() == "admin":
                 if access.is_admin(password):
                     st.session_state["logged_in"] = True
@@ -203,7 +219,6 @@ def show_login_page():
                     )
                     return
 
-            # Regular user login
             result = access.check_access(
                 username, password
             )
@@ -243,7 +258,7 @@ def show_admin_panel():
     """AKUFIN Admin Control Panel"""
     st.title("🔑 AKUFIN Admin Control Panel")
     st.markdown(
-        "*Full administrator control over platform access*"
+        "*Full administrator control over platform*"
     )
     st.divider()
 
@@ -321,12 +336,10 @@ def show_admin_panel():
                 )
                 if result["success"]:
                     st.success(
-                        f"✅ {new_username} approved! "
-                        f"Role: {new_role}"
+                        f"✅ {new_username} approved!"
                     )
                     st.info(
-                        "Set their password in "
-                        "the Set Password tab."
+                        "Set password in Set Password tab."
                     )
                 else:
                     st.error(result.get("error"))
@@ -351,8 +364,7 @@ def show_admin_panel():
                 )
                 if result["success"]:
                     st.success(
-                        f"✅ Access revoked: "
-                        f"{revoke_username}"
+                        f"✅ Revoked: {revoke_username}"
                     )
                 else:
                     st.error(result.get("error"))
@@ -396,12 +408,10 @@ if not st.session_state.get("logged_in"):
     show_login_page()
     st.stop()
 
-# Session timeout check
 if "login_time" not in st.session_state:
     st.session_state["login_time"] = datetime.now()
 check_session_timeout()
 
-# Load services
 services = get_services()
 username = st.session_state.get("username", "user")
 role = st.session_state.get("role", "viewer")
@@ -605,7 +615,7 @@ elif page == "🎯 AI Predictions":
             placeholder="e.g. AAPL, TSLA, SPY"
         )
         ticker = sanitize_ticker(ticker_raw)
-        if ticker != ticker_raw.upper().strip():
+        if ticker_raw and ticker != ticker_raw.upper().strip():
             st.caption(f"Using: {ticker}")
     with g2:
         portfolio = st.selectbox(
@@ -836,9 +846,7 @@ elif page == "🎯 AI Predictions":
 # ══════════════════════════════════════════════════════
 elif page == "💼 Live Portfolio":
     st.title("💼 AKUFIN Live Portfolio")
-    st.markdown(
-        "*Real-time Alpaca Paper Trading data*"
-    )
+    st.markdown("*Real-time Alpaca Paper Trading data*")
     st.divider()
 
     summary = services["broker"].get_portfolio_summary()
@@ -919,18 +927,16 @@ elif page == "💼 Live Portfolio":
                         if result["success"]:
                             st.success(
                                 f"✅ {pos['symbol']} "
-                                f"closed! "
-                                f"{result.get('message', '')}"
+                                f"closed!"
                             )
                             st.rerun()
                         else:
                             st.error(
                                 f"❌ {result.get('error')}"
                             )
-
                 with btn_col2:
                     if st.button(
-                        f"🚫 Cancel Orders {pos['symbol']}",
+                        f"🚫 Cancel Orders",
                         key=f"cancel_{pos['symbol']}",
                         use_container_width=True
                     ):
@@ -945,20 +951,17 @@ elif page == "💼 Live Portfolio":
                         if cancelled > 0:
                             st.success(
                                 f"✅ {cancelled} orders "
-                                f"cancelled. "
-                                f"Try closing again."
+                                f"cancelled."
                             )
                             st.rerun()
                         else:
                             st.info(
-                                "No open orders found "
-                                "for this symbol."
+                                "No open orders found."
                             )
             st.divider()
     else:
         st.info("📭 No open positions yet.")
 
-    # Open Orders Section
     st.subheader("📋 Open Orders")
     open_orders = services["broker"].get_open_orders()
     if open_orders:
@@ -976,22 +979,17 @@ elif page == "💼 Live Portfolio":
                 f"Qty: {order['qty']:.0f} | "
                 f"Status: {order['status']}"
             )
-
         if role in ["trader", "admin"]:
             if st.button(
                 "🚫 Cancel ALL Open Orders",
                 type="primary"
             ):
-                with st.spinner(
-                    "Cancelling all orders..."
-                ):
+                with st.spinner("Cancelling..."):
                     result = services[
                         "broker"
                     ].cancel_all_orders()
                 if result["success"]:
-                    st.success(
-                        "✅ All orders cancelled!"
-                    )
+                    st.success("✅ All orders cancelled!")
                     st.rerun()
                 else:
                     st.error(
@@ -1157,7 +1155,7 @@ elif page == "⚡ Place Paper Trade":
             st.error(f"Error: {e}")
 
 # ══════════════════════════════════════════════════════
-# PAGE 4: PENDING APPROVALS
+# PAGE 4: PENDING APPROVALS (REAL AI SIGNALS)
 # ══════════════════════════════════════════════════════
 elif page == "⏳ Pending Approvals":
     if role not in ["trader", "admin"]:
@@ -1167,165 +1165,224 @@ elif page == "⏳ Pending Approvals":
     st.title("⏳ AKUFIN Trade Approval Gate")
     st.info(
         "**Human-in-the-Loop**: "
-        "AI recommends. You decide."
+        "AI recommends. You decide. "
+        "Every trade requires your approval."
     )
     st.divider()
 
-    spy_price = services[
-        "market"
-    ].get_current_price("SPY")
-    aapl_price = services[
-        "market"
-    ].get_current_price("AAPL")
+    # Load real signals from database
+    sig_repo = get_signal_repo()
+    pending_signals = []
 
-    trades = [
-        {
-            "ticker": "SPY",
-            "portfolio": "SNIPER",
-            "signal": "BUY",
-            "entry": spy_price,
-            "stop": round(spy_price * 0.98, 2),
-            "target": round(spy_price * 1.04, 2),
-            "confidence": 0.87,
-            "qty": 3,
-            "agents": [
-                "Technical ✅",
-                "Whale ✅",
-                "Sentiment ✅"
-            ],
-            "reasoning": (
-                "AKUFIN detected strong SPY momentum. "
-                "All 3 agents agree. "
-                "Institutional buying confirmed."
+    if sig_repo:
+        try:
+            pending_signals = (
+                sig_repo.get_pending_signals()
             )
-        },
-        {
-            "ticker": "AAPL",
-            "portfolio": "FORTRESS",
-            "signal": "BUY",
-            "entry": aapl_price,
-            "stop": round(aapl_price * 0.97, 2),
-            "target": round(aapl_price * 1.06, 2),
-            "confidence": 0.79,
-            "qty": 2,
-            "agents": [
-                "Fundamental ✅",
-                "Macro ✅",
-                "Technical ✅"
-            ],
-            "reasoning": (
-                "AKUFIN FORTRESS: AAPL at support. "
-                "Strong earnings growth. "
-                "Long term wealth accumulation."
-            )
-        }
-    ]
+        except Exception as e:
+            st.error(f"Error loading signals: {e}")
 
-    st.warning(
-        f"⏳ {len(trades)} signals awaiting approval"
-    )
+    if not pending_signals:
+        st.success(
+            "✅ No pending signals right now."
+        )
+        st.info(
+            "💡 **How AKUFIN signals work:**\n\n"
+            "1. Scanner runs automatically at "
+            "market open (9:35 AM ET)\n"
+            "2. Finds high-conviction setups\n"
+            "3. Signal appears here for your review\n"
+            "4. You click APPROVE or REJECT\n"
+            "5. APPROVE → Trade executes on Alpaca\n"
+            "6. You get Telegram confirmation\n\n"
+            "You can also run the scanner manually:\n"
+            "`python run_scanner.py`"
+        )
+    else:
+        st.warning(
+            f"⏳ {len(pending_signals)} AKUFIN "
+            f"signal(s) waiting for your approval"
+        )
 
-    for i, t in enumerate(trades):
-        with st.container():
-            p_icon = (
-                "⚡"
-                if t["portfolio"] == "SNIPER"
-                else "🏰"
-            )
-            s_icon = (
-                "🟢" if t["signal"] == "BUY"
-                else "🔴"
-            )
-            risk = round(t["entry"] - t["stop"], 2)
-            reward = round(
-                t["target"] - t["entry"], 2
-            )
-            rr = (
-                round(reward / risk, 1)
-                if risk > 0 else 0
-            )
-            pv = round(t["entry"] * t["qty"], 2)
+        for signal in pending_signals:
+            with st.container():
+                p_icon = (
+                    "⚡"
+                    if signal["portfolio"] == "SNIPER"
+                    else "🏰"
+                )
+                entry = signal.get("entry_price", 0)
+                stop = signal.get("stop_loss", 0)
+                target = signal.get("take_profit", 0)
+                risk = round(abs(entry - stop), 2)
+                reward = round(
+                    abs(target - entry), 2
+                )
+                rr = (
+                    round(reward / risk, 1)
+                    if risk > 0 else 0
+                )
+                conf = signal.get(
+                    "confidence", 0
+                ) * 100
+                qty = signal.get("quantity", 1)
+                pos_val = round(entry * qty, 2)
+                score = signal.get("score", 0)
 
-            st.markdown(
-                f"### {p_icon} AKUFIN "
-                f"{t['portfolio']} | "
-                f"{s_icon} {t['signal']} "
-                f"**{t['ticker']}**"
-            )
+                st.markdown(
+                    f"### {p_icon} AKUFIN "
+                    f"{signal['portfolio']} | "
+                    f"🟢 {signal['signal']} "
+                    f"**{signal['ticker']}**"
+                )
 
-            c1, c2, c3, c4, c5 = st.columns(5)
-            c1.metric("Entry", f"${t['entry']:.2f}")
-            c2.metric(
-                "Stop",
-                f"${t['stop']:.2f}",
-                f"-${risk:.2f}"
-            )
-            c3.metric(
-                "Target",
-                f"${t['target']:.2f}",
-                f"+${reward:.2f}"
-            )
-            c4.metric("R:R", f"{rr}:1")
-            c5.metric(
-                "Confidence",
-                f"{t['confidence']*100:.0f}%"
-            )
-
-            st.markdown(
-                f"**Agents:** "
-                f"{' | '.join(t['agents'])}"
-            )
-            st.info(f"💎 {t['reasoning']}")
-            st.caption(
-                f"{t['qty']} shares = ${pv:,.2f}"
-            )
-
-            b1, b2, b3, b4 = st.columns(4)
-            if b1.button(
-                "✅ APPROVE",
-                key=f"app_{i}",
-                use_container_width=True
-            ):
-                with st.spinner("Executing..."):
-                    result = services[
-                        "broker"
-                    ].place_market_order(
-                        symbol=t["ticker"],
-                        qty=t["qty"],
-                        side=t["signal"].lower(),
-                        reason=f"Approved by {username}"
+                st.progress(
+                    min(score / 10, 1.0),
+                    text=(
+                        f"AKUFIN Score: {score}/10 | "
+                        f"Trend: "
+                        f"{signal.get('trend', 'N/A')} | "
+                        f"RSI: "
+                        f"{signal.get('rsi', 0):.1f}"
                     )
-                if result.get("success"):
-                    st.success(
-                        f"✅ {t['ticker']} executed!"
+                )
+
+                c1, c2, c3, c4, c5 = st.columns(5)
+                c1.metric("Entry", f"${entry:.2f}")
+                c2.metric(
+                    "Stop Loss",
+                    f"${stop:.2f}",
+                    f"-${risk:.2f}"
+                )
+                c3.metric(
+                    "Target",
+                    f"${target:.2f}",
+                    f"+${reward:.2f}"
+                )
+                c4.metric("R:R", f"{rr}:1")
+                c5.metric(
+                    "Confidence", f"{conf:.0f}%"
+                )
+
+                st.info(
+                    f"💎 **AKUFIN Reasoning:** "
+                    f"{signal.get('reasoning', 'N/A')}"
+                )
+                st.caption(
+                    f"Qty: {qty} shares = "
+                    f"${pos_val:,.2f} | "
+                    f"Signal ID: #{signal['id']} | "
+                    f"Generated: "
+                    f"{signal.get('created_at', '')}"
+                )
+
+                b1, b2, b3 = st.columns(3)
+
+                if b1.button(
+                    "✅ APPROVE & EXECUTE",
+                    key=f"app_{signal['id']}",
+                    use_container_width=True,
+                    type="primary"
+                ):
+                    with st.spinner(
+                        f"Executing "
+                        f"{signal['ticker']}..."
+                    ):
+                        result = services[
+                            "broker"
+                        ].place_market_order(
+                            symbol=signal["ticker"],
+                            qty=signal["quantity"],
+                            side=signal[
+                                "signal"
+                            ].lower(),
+                            reason=(
+                                f"AKUFIN approved "
+                                f"by {username}"
+                            )
+                        )
+
+                    if result.get("success"):
+                        sig_repo.approve_signal(
+                            signal["id"],
+                            username,
+                            result.get("order_id", "")
+                        )
+                        st.success(
+                            f"✅ {signal['ticker']} "
+                            f"executed! "
+                            f"Order: "
+                            f"{result['order_id']}"
+                        )
+                        st.balloons()
+                        try:
+                            from monitoring.telegram_alerts import AKUFINTelegram
+                            tg = AKUFINTelegram()
+                            tg.send_trade_executed(
+                                result
+                            )
+                        except Exception:
+                            pass
+                        st.rerun()
+                    else:
+                        st.error(
+                            f"❌ Failed: "
+                            f"{result.get('error')}"
+                        )
+
+                if b2.button(
+                    "❌ REJECT",
+                    key=f"rej_{signal['id']}",
+                    use_container_width=True
+                ):
+                    sig_repo.reject_signal(
+                        signal["id"], username
                     )
-                    st.balloons()
-                else:
                     st.error(
-                        f"❌ {result.get('error')}"
+                        f"❌ {signal['ticker']} "
+                        f"rejected."
                     )
+                    st.rerun()
 
-            if b2.button(
-                "❌ REJECT",
-                key=f"rej_{i}",
-                use_container_width=True
-            ):
-                st.error(f"❌ {t['ticker']} rejected.")
+                if b3.button(
+                    "🔍 Full Details",
+                    key=f"det_{signal['id']}",
+                    use_container_width=True
+                ):
+                    st.json(signal)
 
-            if b3.button(
-                "⏰ +15 mins",
-                key=f"wait_{i}",
-                use_container_width=True
-            ):
-                st.warning("⏰ Re-alert in 15 mins.")
+                st.divider()
 
-            if b4.button(
-                "🔍 Details",
-                key=f"det_{i}",
-                use_container_width=True
-            ):
-                st.json(t)
-            st.divider()
+    # Signal History
+    if sig_repo:
+        with st.expander("📜 Signal History"):
+            try:
+                all_sigs = sig_repo.get_all_signals(
+                    limit=20
+                )
+                if all_sigs:
+                    for s in all_sigs:
+                        status_icon = {
+                            "PENDING": "⏳",
+                            "APPROVED": "✅",
+                            "REJECTED": "❌"
+                        }.get(s["status"], "❓")
+                        st.markdown(
+                            f"{status_icon} "
+                            f"**{s['ticker']}** "
+                            f"{s['signal']} | "
+                            f"Score: {s['score']}/10 | "
+                            f"Conf: "
+                            f"{s['confidence']*100:.0f}% | "
+                            f"Status: {s['status']} | "
+                            f"{s['created_at']}"
+                        )
+                else:
+                    st.info(
+                        "No signal history yet."
+                    )
+            except Exception as e:
+                st.error(f"Error: {e}")
 
 # ══════════════════════════════════════════════════════
 # PAGE 5: LIVE ANALYSIS
@@ -1505,7 +1562,7 @@ elif page == "📈 Agent Activity":
             "agent": "💎 AKUFIN Scanner",
             "action": (
                 "Morning scan: 20 tickers. "
-                "3 signals found."
+                "3 signals saved to database."
             ),
             "level": "HIGH",
             "portfolio": "SNIPER"
@@ -1548,7 +1605,10 @@ elif page == "📈 Agent Activity":
         {
             "time": "10:03",
             "agent": "⏳ AKUFIN Human Gate",
-            "action": "SPY BUY sent for approval.",
+            "action": (
+                "SPY BUY saved to Pending Approvals. "
+                "Telegram notified."
+            ),
             "level": "HIGH",
             "portfolio": "SNIPER"
         },

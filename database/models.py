@@ -80,9 +80,7 @@ class Prediction(Base):
     risk_factors = Column(Text)
     strategy = Column(Text)
     portfolio = Column(String(20))
-    status = Column(
-        String(20), default="ACTIVE"
-    )
+    status = Column(String(20), default="ACTIVE")
     actual_price_at_target = Column(
         Float, nullable=True
     )
@@ -93,3 +91,32 @@ class Prediction(Base):
     created_at = Column(
         DateTime, server_default=func.now()
     )
+
+
+class TradeSignal(Base):
+    __tablename__ = "trade_signals"
+
+    id = Column(
+        Integer, primary_key=True, autoincrement=True
+    )
+    ticker = Column(String(10), nullable=False)
+    signal = Column(String(10))
+    portfolio = Column(String(20))
+    score = Column(Integer, default=0)
+    confidence = Column(Float, default=0.0)
+    entry_price = Column(Float)
+    stop_loss = Column(Float)
+    take_profit = Column(Float)
+    quantity = Column(Integer)
+    reasoning = Column(String(500))
+    trend = Column(String(30))
+    rsi = Column(Float)
+    status = Column(String(20), default="PENDING")
+    approved_by = Column(String(50), nullable=True)
+    alpaca_order_id = Column(
+        String(100), nullable=True
+    )
+    created_at = Column(
+        DateTime, server_default=func.now()
+    )
+    acted_at = Column(DateTime, nullable=True)

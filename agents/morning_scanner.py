@@ -1,6 +1,7 @@
 # agents/morning_scanner.py
 # AKUFIN - Intelligence for Wealth Accrual
 # Multi-Session Market Scanner
+# Saves signals to database for dashboard approval
 import sys
 import os
 sys.path.append(
@@ -11,9 +12,9 @@ sys.path.append(
 
 from tools.market_data import MarketDataFetcher
 from tools.indicators import TechnicalIndicators
-from agents.human_gate import AKUFINHumanGate
 from monitoring.telegram_alerts import AKUFINTelegram
 from monitoring.logger import get_logger
+from database.signal_repository import SignalRepository
 
 logger = get_logger(__name__)
 
@@ -31,15 +32,17 @@ FORTRESS_WATCHLIST = [
 class AKUFINMorningScanner:
     """
     AKUFIN Multi-Session Market Scanner.
-    Supports Pre-Market, Regular, and After-Hours.
-    Sends signals to Telegram for your approval.
+    Scans markets across all 3 sessions.
+    Saves signals to database.
+    Sends Telegram notification.
+    User approves via dashboard.
     """
 
     def __init__(self):
         self.market = MarketDataFetcher()
         self.indicators = TechnicalIndicators()
-        self.human_gate = AKUFINHumanGate()
         self.telegram = AKUFINTelegram()
+        self.signal_repo = SignalRepository()
 
     def scan_ticker(
         self,
@@ -151,11 +154,7 @@ class AKUFINMorningScanner:
         stop_loss: float,
         max_risk_dollars: float = 100
     ) -> int:
-        """
-        Calculate safe position size.
-        Max risk $100 per trade.
-        Max 50 shares per trade.
-        """
+        """Calculate safe position size"""
         risk_per_share = abs(price - stop_loss)
         if risk_per_share <= 0:
             return 1
@@ -168,17 +167,11 @@ class AKUFINMorningScanner:
         all_signals = []
 
         for ticker in SNIPER_WATCHLIST:
-            logger.info(
-                f"AKUFIN scanning {ticker} SNIPER"
-            )
             result = self.scan_ticker(ticker, "SNIPER")
             if result and result["signal"] == "BUY":
                 all_signals.append(result)
 
         for ticker in FORTRESS_WATCHLIST:
-            logger.info(
-                f"AKUFIN scanning {ticker} FORTRESS"
-            )
             result = self.scan_ticker(
                 ticker, "FORTRESS"
             )
@@ -196,17 +189,94 @@ class AKUFINMorningScanner:
         )
         return all_signals
 
+    def _save_signals_and_notify(
+        self, signals: list, session_name: str
+    ):
+        """
+        Save top signals to database.
+        Send Telegram notification.
+        User approves via dashboard.
+        """
+        if not signals:
+            self.telegram.send_message(
+                f"💎 <b>AKUFIN {session_name}</b>\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n"
+                "🔍 Scan complete.\n"
+                "No high conviction signals found.\n"
+                "Will scan again next session."
+            )
+            return
+
+        # Save top 3 signals to database
+        saved_signals = []
+        for signal in signals[:3]:
+            signal_id = self.signal_repo.save_signal(
+                signal
+            )
+            if signal_id:
+                signal["id"] = signal_id
+                saved_signals.append(signal)
+
+        if not saved_signals:
+            return
+
+        # Build Telegram notification
+        signal_text = ""
+        for i, s in enumerate(saved_signals, 1):
+            port_icon = (
+                "⚡" if s["portfolio"] == "SNIPER"
+                else "🏰"
+            )
+            risk = round(
+                s["entry_price"] - s["stop_loss"], 2
+            )
+            reward = round(
+                s["take_profit"] - s["entry_price"], 2
+            )
+            rr = round(
+                reward / risk, 1
+            ) if risk > 0 else 0
+
+            signal_text += (
+                f"\n{i}. {port_icon} "
+                f"<b>{s['ticker']}</b> BUY\n"
+                f"   Entry: ${s['entry_price']:.2f} | "
+                f"Stop: ${s['stop_loss']:.2f}\n"
+                f"   Target: ${s['take_profit']:.2f} | "
+                f"R:R: {rr}:1\n"
+                f"   Score: {s['score']}/10 | "
+                f"Confidence: {s['confidence']*100:.0f}%\n"
+                f"   📊 {s['reasoning']}\n"
+            )
+
+        self.telegram.send_message(
+            f"💎 <b>AKUFIN {session_name} SIGNALS</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🔍 Scanned 16 tickers\n"
+            f"🎯 Found {len(saved_signals)} signals\n"
+            f"{signal_text}\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📱 <b>Go to AKUFIN Dashboard</b>\n"
+            f"→ Pending Approvals page\n"
+            f"→ Review and approve trades\n"
+            f"→ alpha-mind.streamlit.app"
+        )
+
+        logger.info(
+            f"AKUFIN: {len(saved_signals)} signals "
+            f"saved and notified"
+        )
+
     def _run_pre_market_scan(self):
-        """Pre-market 4AM-9:30AM scan only no execution"""
-        logger.info("AKUFIN Pre-Market Scan starting")
+        """Pre-market scan - notify only"""
+        logger.info("AKUFIN Pre-Market Scan")
 
         self.telegram.send_message(
             "💎 <b>AKUFIN PRE-MARKET SCAN</b>\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
             "🔍 Scanning for gaps and setups...\n"
-            "📰 Analyzing overnight news...\n"
             "⚡ Preparing SNIPER watchlist...\n\n"
-            "No trades yet. Waiting for market open."
+            "No trades yet. Market opens at 9:30 AM ET."
         )
 
         signals = self.run_full_scan()
@@ -225,7 +295,7 @@ class AKUFINMorningScanner:
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"Watch these at market open:"
                 f"{signal_text}\n\n"
-                f"Will alert at 9:35 AM ET."
+                f"Signals will be sent at 9:35 AM ET."
             )
         else:
             self.telegram.send_message(
@@ -235,16 +305,15 @@ class AKUFINMorningScanner:
             )
 
     def _run_after_hours_scan(self):
-        """After-hours 4PM-8PM earnings and news focus"""
-        logger.info("AKUFIN After-Hours Scan starting")
+        """After-hours scan - FORTRESS only"""
+        logger.info("AKUFIN After-Hours Scan")
 
         self.telegram.send_message(
             "💎 <b>AKUFIN AFTER-HOURS SCAN</b>\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
             "🏰 FORTRESS mode active\n"
             "📊 Scanning earnings reactions...\n"
-            "⚠️ High risk: Wide spreads\n\n"
-            "Only high conviction FORTRESS trades."
+            "⚠️ High risk: Wide spreads"
         )
 
         signals = []
@@ -259,32 +328,19 @@ class AKUFINMorningScanner:
             ):
                 signals.append(result)
 
-        if signals:
-            logger.info(
-                f"AKUFIN after-hours: "
-                f"{len(signals)} FORTRESS signals"
-            )
-            for signal in signals[:1]:
-                self.human_gate.process_signal(
-                    signal,
-                    timeout_seconds=180
-                )
-        else:
-            self.telegram.send_message(
-                "🏰 <b>AKUFIN AFTER-HOURS</b>\n"
-                "No high conviction FORTRESS signals.\n"
-                "Market analysis complete for today."
-            )
+        self._save_signals_and_notify(
+            signals, "AFTER-HOURS"
+        )
 
-        self.human_gate.send_daily_report()
+        # Send daily report
+        self._send_daily_report()
 
     def _run_regular_session_scan(
-        self,
-        session: str
+        self, session: str
     ):
-        """Regular market hours full scan and execution"""
+        """Regular session scan with signal saving"""
         logger.info(
-            f"AKUFIN Regular Session Scan: {session}"
+            f"AKUFIN Regular Scan: {session}"
         )
 
         if session == "LUNCH_LULL":
@@ -293,45 +349,68 @@ class AKUFINMorningScanner:
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
                 "📉 Volume dropping at lunch.\n"
                 "Managing existing positions only.\n"
-                "No new entries recommended.\n"
                 "Next scan at 2:00 PM ET."
             )
             return
 
-        self.telegram.send_message(
-            f"💎 <b>AKUFIN {session}</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-            "🔍 Scanning 16 tickers...\n"
-            "Sending top signals shortly."
+        signals = self.run_full_scan()
+        self._save_signals_and_notify(
+            signals, session
         )
 
-        signals = self.run_full_scan()
-        self.telegram.send_morning_scan(signals)
+    def _send_daily_report(self):
+        """Send daily performance summary"""
+        try:
+            from tools.alpaca_broker import AlpacaBroker
+            broker = AlpacaBroker()
+            summary = broker.get_portfolio_summary()
+            account = summary["account"]
 
-        if signals:
-            logger.info(
-                f"AKUFIN processing top "
-                f"{min(2, len(signals))} signals"
+            from prediction_engine.predictor import (
+                PredictionEngine
             )
-            for signal in signals[:2]:
-                result = self.human_gate.process_signal(
-                    signal,
-                    timeout_seconds=300
-                )
-                logger.info(
-                    f"AKUFIN: {signal['ticker']} "
-                    f"→ {result.get('status')}"
-                )
-        else:
-            logger.info(
-                "AKUFIN: No signals this session"
+            predictor = PredictionEngine()
+            predictions = predictor.get_all_predictions()
+            total = len(predictions)
+            correct = sum(
+                1 for p in predictions
+                if p.get("prediction_correct") is True
+            )
+            resolved = sum(
+                1 for p in predictions
+                if p.get(
+                    "prediction_correct"
+                ) is not None
+            )
+            accuracy = (
+                round(correct / resolved * 100, 1)
+                if resolved > 0 else 0
+            )
+
+            self.telegram.send_message(
+                f"📊 <b>AKUFIN DAILY REPORT</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"💰 Portfolio: "
+                f"<b>${account.get('portfolio_value', 0):,.2f}</b>\n"
+                f"📈 Daily P&L: "
+                f"<b>${account.get('daily_pl', 0):+,.2f}</b>\n"
+                f"📊 Positions: "
+                f"<b>{summary.get('total_positions', 0)}</b>\n"
+                f"🎯 Predictions: <b>{total}</b>\n"
+                f"✅ Accuracy: <b>{accuracy:.1f}%</b>\n\n"
+                f"💎 AKUFIN - Intelligence for Wealth Accrual"
+            )
+        except Exception as e:
+            logger.error(
+                f"AKUFIN daily report error: {e}"
             )
 
     def run(self):
         """
         AKUFIN Multi-Session Scanner.
-        Runs different logic for each session.
-        Called automatically or manually.
+        Saves signals to database.
+        Notifies via Telegram.
+        User approves via dashboard.
         """
         from config.trading_hours import (
             get_current_session,
@@ -342,44 +421,33 @@ class AKUFINMorningScanner:
         strategy = get_session_strategy(session)
 
         logger.info(
-            f"AKUFIN Scanner | Session: {session} | "
-            f"Strategy: {strategy['strategy']}"
+            f"AKUFIN Scanner | Session: {session}"
         )
 
-        # Send session briefing to Telegram
         self.telegram.send_message(
             f"💎 <b>AKUFIN {session}</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"📊 Strategy: {strategy['strategy']}\n"
-            f"⚠️ Risk Level: {strategy['risk_level']}\n\n"
+            f"⚠️ Risk: {strategy['risk_level']}\n\n"
             f"<i>{strategy['akufin_action']}</i>"
         )
 
-        # Weekend or after hours closed
         if session in ["WEEKEND", "MARKET_CLOSED"]:
-            logger.info(
-                "AKUFIN: Market closed. No scan."
-            )
+            logger.info("AKUFIN: Market closed.")
             return
 
-        # Opening bell - too volatile
         if session == "OPENING_BELL":
-            logger.info(
-                "AKUFIN: Opening bell. Waiting."
-            )
+            logger.info("AKUFIN: Opening bell wait.")
             return
 
-        # Pre-market - scan only no execution
         if session == "PRE_MARKET":
             self._run_pre_market_scan()
             return
 
-        # After-hours - FORTRESS only
         if session == "AFTER_HOURS":
             self._run_after_hours_scan()
             return
 
-        # Regular session - full scan and execution
         if session in [
             "MORNING_SESSION",
             "AFTERNOON_SESSION",
@@ -387,8 +455,3 @@ class AKUFINMorningScanner:
         ]:
             self._run_regular_session_scan(session)
             return
-
-        # Fallback
-        logger.warning(
-            f"AKUFIN: Unknown session {session}"
-        )
