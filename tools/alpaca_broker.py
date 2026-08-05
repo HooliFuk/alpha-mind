@@ -170,26 +170,17 @@ class AlpacaBroker:
             orders = self.client.get_orders()
             result = []
             for order in orders:
-                if str(order.status) in [
-                    "OrderStatus.NEW",
-                    "OrderStatus.PARTIALLY_FILLED",
-                    "OrderStatus.HELD",
-                    "new",
-                    "partially_filled",
-                    "held",
-                    "accepted"
-                ]:
-                    result.append({
-                        "id": str(order.id),
-                        "symbol": order.symbol,
-                        "qty": safe_float(order.qty),
-                        "side": str(order.side),
-                        "type": str(order.type),
-                        "status": str(order.status),
-                        "submitted_at": str(
-                            order.submitted_at
-                        )
-                    })
+                result.append({
+                    "id": str(order.id),
+                    "symbol": order.symbol,
+                    "qty": safe_float(order.qty),
+                    "side": str(order.side),
+                    "type": str(order.type),
+                    "status": str(order.status),
+                    "submitted_at": str(
+                        order.submitted_at
+                    )
+                })
             return result
         except Exception as e:
             logger.error(
@@ -220,8 +211,7 @@ class AlpacaBroker:
                         )
                     except Exception as ce:
                         logger.warning(
-                            f"AKUFIN cancel order warning: "
-                            f"{ce}"
+                            f"AKUFIN cancel warning: {ce}"
                         )
         except Exception as e:
             logger.error(
@@ -311,7 +301,6 @@ class AlpacaBroker:
         Step 3: Close the position
         """
         try:
-            # Step 1: Cancel existing orders first
             logger.info(
                 f"AKUFIN: Cancelling orders for {symbol}"
             )
@@ -323,11 +312,9 @@ class AlpacaBroker:
                 f"orders for {symbol}"
             )
 
-            # Step 2: Wait for cancellations
             if cancelled > 0:
                 time.sleep(2)
 
-            # Step 3: Close the position
             self.client.close_position(symbol)
             logger.info(
                 f"AKUFIN: Position closed: {symbol}"
