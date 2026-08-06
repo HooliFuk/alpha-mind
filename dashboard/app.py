@@ -435,6 +435,7 @@ with st.sidebar:
         nav_options.append("💼 Live Portfolio")
         nav_options.append("📊 Live Analysis")
         nav_options.append("📈 Agent Activity")
+        nav_options.append("📉 Performance Analytics")
 
     if role in ["trader", "admin"]:
         nav_options.append("⚡ Place Paper Trade")
@@ -1667,7 +1668,529 @@ elif page == "🔑 Admin Panel":
         st.error("❌ Access denied.")
         st.stop()
     show_admin_panel()
+# ══════════════════════════════════════════════════════
+# PAGE 8: PERFORMANCE ANALYTICS
+# ══════════════════════════════════════════════════════
+elif page == "📉 Performance Analytics":
+    st.title("📉 AKUFIN Performance Analytics")
+    st.markdown(
+        "*Verifiable AI prediction track record*"
+    )
+    st.divider()
 
+    predictions = (
+        services["predictor"].get_all_predictions()
+    )
+
+    if not predictions:
+        st.info(
+            "No predictions yet. "
+            "Generate predictions on the "
+            "AI Predictions page to build "
+            "your track record."
+        )
+    else:
+        # ── Summary Scorecard ─────────────────────
+        total = len(predictions)
+        active = sum(
+            1 for p in predictions
+            if p.get("status") == "ACTIVE"
+        )
+        resolved = sum(
+            1 for p in predictions
+            if p.get("prediction_correct") is not None
+        )
+        correct = sum(
+            1 for p in predictions
+            if p.get("prediction_correct") is True
+        )
+        accuracy = (
+            round(correct / resolved * 100, 1)
+            if resolved > 0 else 0
+        )
+        avg_confidence = round(
+            sum(
+                p.get("confidence", 0)
+                for p in predictions
+            ) / total * 100, 1
+        )
+
+        st.subheader("🏆 AKUFIN Scorecard")
+        s1, s2, s3, s4, s5 = st.columns(5)
+        s1.metric(
+            "Total Predictions",
+            total,
+            help="All predictions generated"
+        )
+        s2.metric(
+            "Active",
+            active,
+            help="Still tracking"
+        )
+        s3.metric(
+            "Resolved",
+            resolved,
+            help="Target date reached"
+        )
+        s4.metric(
+            "AI Accuracy",
+            f"{accuracy}%",
+            help="Correct predictions"
+        )
+        s5.metric(
+            "Avg Confidence",
+            f"{avg_confidence}%",
+            help="Average AI confidence"
+        )
+
+        st.divider()
+
+        # ── Charts Section ────────────────────────
+        import plotly.express as px
+        import pandas as pd
+
+        # Build dataframe from predictions
+        df_data = []
+        for p in predictions:
+            df_data.append({
+                "Ticker": p.get("ticker", ""),
+                "Portfolio": p.get(
+                    "portfolio", "SNIPER"
+                ),
+                "Direction": p.get(
+                    "predicted_direction", "UP"
+                ),
+                "Confidence": p.get(
+                    "confidence", 0
+                ) * 100,
+                "Status": p.get("status", "ACTIVE"),
+                "Correct": p.get(
+                    "prediction_correct"
+                ),
+                "Progress": p.get(
+                    "progress_to_target_pct", 0
+                ),
+                "Created": p.get("created_at", ""),
+                "Target Date": p.get(
+                    "target_date", ""
+                ),
+                "Entry Price": p.get(
+                    "current_price_at_prediction", 0
+                ),
+                "Target Price": p.get(
+                    "predicted_price", 0
+                ),
+                "Current Price": p.get(
+                    "current_price_now", 0
+                ),
+                "Change So Far": p.get(
+                    "price_change_so_far_pct", 0
+                )
+            })
+
+        df = pd.DataFrame(df_data)
+
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "📊 Accuracy Charts",
+            "🎯 By Ticker",
+            "💼 By Portfolio",
+            "📋 Full History"
+        ])
+
+        with tab1:
+            st.subheader(
+                "📊 Prediction Accuracy Overview"
+            )
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Accuracy pie chart
+                if resolved > 0:
+                    pie_data = {
+                        "Result": [
+                            "Correct",
+                            "Incorrect",
+                            "Active"
+                        ],
+                        "Count": [
+                            correct,
+                            resolved - correct,
+                            active
+                        ]
+                    }
+                    fig_pie = px.pie(
+                        pie_data,
+                        values="Count",
+                        names="Result",
+                        title="Prediction Outcomes",
+                        color="Result",
+                        color_discrete_map={
+                            "Correct": "#00e676",
+                            "Incorrect": "#ff5252",
+                            "Active": "#FFD700"
+                        }
+                    )
+                    fig_pie.update_layout(
+                        template="plotly_dark",
+                        paper_bgcolor="#0a0e1a",
+                        plot_bgcolor="#0a0e1a"
+                    )
+                    st.plotly_chart(
+                        fig_pie,
+                        use_container_width=True
+                    )
+                else:
+                    st.info(
+                        "No resolved predictions yet. "
+                        "Come back when target "
+                        "dates arrive."
+                    )
+
+            with col2:
+                # Direction breakdown
+                up_count = sum(
+                    1 for p in predictions
+                    if p.get(
+                        "predicted_direction"
+                    ) == "UP"
+                )
+                down_count = total - up_count
+
+                dir_data = {
+                    "Direction": ["UP 🟢", "DOWN 🔴"],
+                    "Count": [up_count, down_count]
+                }
+                fig_dir = px.bar(
+                    dir_data,
+                    x="Direction",
+                    y="Count",
+                    title="Prediction Direction Split",
+                    color="Direction",
+                    color_discrete_map={
+                        "UP 🟢": "#00e676",
+                        "DOWN 🔴": "#ff5252"
+                    }
+                )
+                fig_dir.update_layout(
+                    template="plotly_dark",
+                    paper_bgcolor="#0a0e1a",
+                    plot_bgcolor="#0a0e1a",
+                    showlegend=False
+                )
+                st.plotly_chart(
+                    fig_dir,
+                    use_container_width=True
+                )
+
+            # Confidence distribution
+            st.subheader("🎲 Confidence Distribution")
+            fig_conf = px.histogram(
+                df,
+                x="Confidence",
+                nbins=10,
+                title="AI Confidence Score Distribution",
+                color_discrete_sequence=["#DAA520"]
+            )
+            fig_conf.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="#0a0e1a",
+                plot_bgcolor="#0a0e1a"
+            )
+            st.plotly_chart(
+                fig_conf,
+                use_container_width=True
+            )
+
+            # Progress to target
+            st.subheader(
+                "📈 Progress to Target (Active)"
+            )
+            active_preds = [
+                p for p in predictions
+                if p.get("status") == "ACTIVE"
+            ]
+            if active_preds:
+                prog_data = {
+                    "Ticker": [
+                        p["ticker"]
+                        for p in active_preds
+                    ],
+                    "Progress": [
+                        p.get(
+                            "progress_to_target_pct",
+                            0
+                        )
+                        for p in active_preds
+                    ],
+                    "Portfolio": [
+                        p.get("portfolio", "SNIPER")
+                        for p in active_preds
+                    ]
+                }
+                fig_prog = px.bar(
+                    prog_data,
+                    x="Ticker",
+                    y="Progress",
+                    color="Portfolio",
+                    title="Progress to Price Target (%)",
+                    color_discrete_map={
+                        "SNIPER": "#4fc3f7",
+                        "FORTRESS": "#DAA520"
+                    }
+                )
+                fig_prog.update_layout(
+                    template="plotly_dark",
+                    paper_bgcolor="#0a0e1a",
+                    plot_bgcolor="#0a0e1a"
+                )
+                st.plotly_chart(
+                    fig_prog,
+                    use_container_width=True
+                )
+            else:
+                st.info("No active predictions.")
+
+        with tab2:
+            st.subheader("🎯 Performance By Ticker")
+
+            ticker_counts = df.groupby(
+                "Ticker"
+            ).size().reset_index(name="Count")
+            ticker_counts = ticker_counts.sort_values(
+                "Count", ascending=False
+            )
+
+            fig_tick = px.bar(
+                ticker_counts,
+                x="Ticker",
+                y="Count",
+                title="Predictions Per Ticker",
+                color_discrete_sequence=["#DAA520"]
+            )
+            fig_tick.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="#0a0e1a",
+                plot_bgcolor="#0a0e1a"
+            )
+            st.plotly_chart(
+                fig_tick,
+                use_container_width=True
+            )
+
+            # Confidence by ticker
+            conf_by_ticker = df.groupby(
+                "Ticker"
+            )["Confidence"].mean().reset_index()
+            conf_by_ticker.columns = [
+                "Ticker", "Avg Confidence"
+            ]
+            conf_by_ticker = conf_by_ticker.sort_values(
+                "Avg Confidence", ascending=False
+            )
+
+            fig_conf_tick = px.bar(
+                conf_by_ticker,
+                x="Ticker",
+                y="Avg Confidence",
+                title="Average AI Confidence by Ticker",
+                color_discrete_sequence=["#4fc3f7"]
+            )
+            fig_conf_tick.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="#0a0e1a",
+                plot_bgcolor="#0a0e1a"
+            )
+            st.plotly_chart(
+                fig_conf_tick,
+                use_container_width=True
+            )
+
+        with tab3:
+            st.subheader(
+                "💼 SNIPER vs FORTRESS Performance"
+            )
+
+            port_counts = df.groupby(
+                "Portfolio"
+            ).size().reset_index(name="Count")
+
+            fig_port = px.pie(
+                port_counts,
+                values="Count",
+                names="Portfolio",
+                title="Predictions by Portfolio",
+                color="Portfolio",
+                color_discrete_map={
+                    "SNIPER": "#4fc3f7",
+                    "FORTRESS": "#DAA520"
+                }
+            )
+            fig_port.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="#0a0e1a",
+                plot_bgcolor="#0a0e1a"
+            )
+            st.plotly_chart(
+                fig_port,
+                use_container_width=True
+            )
+
+            # Portfolio confidence comparison
+            port_conf = df.groupby(
+                "Portfolio"
+            )["Confidence"].mean().reset_index()
+
+            col1, col2 = st.columns(2)
+            for idx, row in port_conf.iterrows():
+                if row["Portfolio"] == "SNIPER":
+                    col1.metric(
+                        "⚡ SNIPER Avg Confidence",
+                        f"{row['Confidence']:.1f}%"
+                    )
+                else:
+                    col2.metric(
+                        "🏰 FORTRESS Avg Confidence",
+                        f"{row['Confidence']:.1f}%"
+                    )
+
+            # Progress by portfolio
+            st.subheader("Progress by Portfolio")
+            port_prog = df.groupby(
+                "Portfolio"
+            )["Progress"].mean().reset_index()
+
+            fig_pp = px.bar(
+                port_prog,
+                x="Portfolio",
+                y="Progress",
+                title="Avg Progress to Target by Portfolio",
+                color="Portfolio",
+                color_discrete_map={
+                    "SNIPER": "#4fc3f7",
+                    "FORTRESS": "#DAA520"
+                }
+            )
+            fig_pp.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="#0a0e1a",
+                plot_bgcolor="#0a0e1a"
+            )
+            st.plotly_chart(
+                fig_pp,
+                use_container_width=True
+            )
+
+        with tab4:
+            st.subheader("📋 Full Prediction History")
+
+            # Sort options
+            sort_by = st.selectbox(
+                "Sort by",
+                [
+                    "Newest First",
+                    "Highest Confidence",
+                    "Most Progress",
+                    "By Ticker"
+                ]
+            )
+
+            sorted_preds = predictions.copy()
+            if sort_by == "Newest First":
+                sorted_preds = sorted(
+                    sorted_preds,
+                    key=lambda x: x.get(
+                        "created_at", ""
+                    ),
+                    reverse=True
+                )
+            elif sort_by == "Highest Confidence":
+                sorted_preds = sorted(
+                    sorted_preds,
+                    key=lambda x: x.get(
+                        "confidence", 0
+                    ),
+                    reverse=True
+                )
+            elif sort_by == "Most Progress":
+                sorted_preds = sorted(
+                    sorted_preds,
+                    key=lambda x: x.get(
+                        "progress_to_target_pct", 0
+                    ),
+                    reverse=True
+                )
+            elif sort_by == "By Ticker":
+                sorted_preds = sorted(
+                    sorted_preds,
+                    key=lambda x: x.get("ticker", "")
+                )
+
+            for pred in sorted_preds:
+                dir_icon = (
+                    "🟢"
+                    if pred.get(
+                        "predicted_direction"
+                    ) == "UP"
+                    else "🔴"
+                )
+                port_icon = (
+                    "⚡"
+                    if pred.get(
+                        "portfolio"
+                    ) == "SNIPER"
+                    else "🏰"
+                )
+                conf = (
+                    pred.get("confidence", 0) * 100
+                )
+                progress = pred.get(
+                    "progress_to_target_pct", 0
+                )
+                change = pred.get(
+                    "price_change_so_far_pct", 0
+                )
+
+                status_icon = {
+                    "ACTIVE": "🔄",
+                    "RESOLVED": "✅",
+                    "EXPIRED": "⏰"
+                }.get(
+                    pred.get("status", "ACTIVE"), "🔄"
+                )
+
+                with st.container():
+                    c1, c2, c3, c4, c5 = st.columns(
+                        [2, 1, 1, 1, 1]
+                    )
+                    c1.markdown(
+                        f"{port_icon} {dir_icon} "
+                        f"**{pred['ticker']}** → "
+                        f"${pred['predicted_price']:.2f}"
+                    )
+                    c2.metric(
+                        "Confidence",
+                        f"{conf:.0f}%"
+                    )
+                    c3.metric(
+                        "Progress",
+                        f"{progress:.1f}%"
+                    )
+                    c4.metric(
+                        "Change",
+                        f"{change:+.1f}%"
+                    )
+                    c5.markdown(
+                        f"{status_icon} "
+                        f"{pred.get('status', 'ACTIVE')}"
+                    )
+                    st.caption(
+                        f"Target: "
+                        f"{pred.get('target_date', '')} | "
+                        f"Generated: "
+                        f"{pred.get('created_at', '')}"
+                    )
+                    st.divider()
 # ── Footer ────────────────────────────────────────────
 st.markdown("---")
 st.markdown(
