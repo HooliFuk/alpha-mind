@@ -456,7 +456,7 @@ with st.sidebar:
     st.divider()
 
     try:
-        acc = services["broker"].get_account()
+        fresh_acc = AlpacaBroker().get_account()
         st.metric(
             "AKUFIN Portfolio",
             f"${acc['portfolio_value']:,.0f}",
@@ -496,7 +496,9 @@ if page == "🏠 Dashboard Home":
     </div>
     """, unsafe_allow_html=True)
 
-    summary = services["broker"].get_portfolio_summary()
+    # Fresh broker for real-time data
+    fresh_broker = AlpacaBroker()
+    summary = fresh_broker.get_portfolio_summary()
     account = summary["account"]
     predictions = (
         services["predictor"].get_all_predictions()
@@ -850,7 +852,20 @@ elif page == "💼 Live Portfolio":
     st.markdown("*Real-time Alpaca Paper Trading data*")
     st.divider()
 
-    summary = services["broker"].get_portfolio_summary()
+    # Auto refresh every 30 seconds
+    import time
+    if st.button("🔄 Refresh Positions"):
+        st.rerun()
+
+    st.caption(
+        f"Last updated: "
+        f"{datetime.now().strftime('%H:%M:%S')} | "
+        f"Click refresh for latest data"
+    )
+
+    # Force fresh data bypassing cache
+    fresh_broker = AlpacaBroker()
+    summary = fresh_broker.get_portfolio_summary()
     account = summary["account"]
     positions = summary["positions"]
     orders = summary["recent_orders"]
