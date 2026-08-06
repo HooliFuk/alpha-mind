@@ -440,6 +440,7 @@ with st.sidebar:
     if role in ["trader", "admin"]:
         nav_options.append("⚡ Place Paper Trade")
         nav_options.append("⏳ Pending Approvals")
+        nav_options.append("🧠 AKUFIN Intelligence")
 
     if role == "admin":
         nav_options.append("🔑 Admin Panel")
@@ -2206,6 +2207,393 @@ elif page == "📉 Performance Analytics":
                         f"{pred.get('created_at', '')}"
                     )
                     st.divider()
+# ══════════════════════════════════════════════════════
+# PAGE 9: AKUFIN INTELLIGENCE (4 AGENTS)
+# ══════════════════════════════════════════════════════
+elif page == "🧠 AKUFIN Intelligence":
+    if role not in ["trader", "admin"]:
+        st.error("❌ Access denied.")
+        st.stop()
+
+    st.title("🧠 AKUFIN Intelligence Engine")
+    st.markdown(
+        "*4 AI agents analyze simultaneously. "
+        "One unified verdict.*"
+    )
+    st.divider()
+
+    st.info(
+        "**How it works:**\n"
+        "Enter a ticker below. "
+        "AKUFIN runs 4 specialized agents "
+        "simultaneously:\n"
+        "🎯 Scoring Agent | "
+        "⚡ Tactical Agent | "
+        "🌍 Macro Agent | "
+        "📊 Pattern Agent\n\n"
+        "Takes 30-60 seconds. "
+        "High conviction signals auto-save "
+        "to Pending Approvals."
+    )
+
+    col1, col2, col3 = st.columns([3, 2, 1])
+    with col1:
+        intel_ticker = st.text_input(
+            "Ticker Symbol",
+            value="NVDA",
+            placeholder="e.g. NVDA, AAPL, SPY"
+        ).upper().strip()
+        intel_ticker = sanitize_ticker(intel_ticker)
+
+    with col2:
+        intel_portfolio = st.selectbox(
+            "Portfolio",
+            ["SNIPER", "FORTRESS"]
+        )
+
+    with col3:
+        st.write("")
+        st.write("")
+        run_intel = st.button(
+            "🧠 Run Analysis",
+            type="primary",
+            use_container_width=True
+        )
+
+    if run_intel and intel_ticker:
+        st.divider()
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+
+        try:
+            from agents.orchestrator import (
+                AKUFINOrchestrator
+            )
+
+            status_text.markdown(
+                "🔄 **Starting AKUFIN agents...**"
+            )
+            progress_bar.progress(10)
+
+            orchestrator = AKUFINOrchestrator()
+
+            status_text.markdown(
+                "🎯 **Scoring Agent analyzing...**\n\n"
+                "⚡ **Tactical Agent calculating...**\n\n"
+                "🌍 **Macro Agent assessing...**\n\n"
+                "📊 **Pattern Agent scanning...**"
+            )
+            progress_bar.progress(30)
+
+            with st.spinner(
+                f"All 4 AKUFIN agents analyzing "
+                f"{intel_ticker}... "
+                f"(30-60 seconds)"
+            ):
+                result = orchestrator.analyze_sync(
+                    intel_ticker
+                )
+
+            progress_bar.progress(90)
+            status_text.markdown(
+                "🧠 **Orchestrator synthesizing...**"
+            )
+
+            progress_bar.progress(100)
+            status_text.empty()
+            progress_bar.empty()
+
+            if "error" in result:
+                st.error(
+                    f"❌ Analysis error: "
+                    f"{result.get('error')}"
+                )
+            else:
+                final_signal = result.get(
+                    "final_signal", "HOLD"
+                )
+                confidence = result.get(
+                    "confidence", 0
+                ) * 100
+                akufin_score = result.get(
+                    "akufin_score", 0
+                )
+                agents_agree = result.get(
+                    "agents_agreeing", 0
+                )
+
+                # Signal color
+                if final_signal == "BUY":
+                    signal_color = "🟢"
+                    st.success(
+                        f"### {signal_color} "
+                        f"AKUFIN SIGNAL: **{final_signal}**"
+                    )
+                elif final_signal == "SELL":
+                    signal_color = "🔴"
+                    st.error(
+                        f"### {signal_color} "
+                        f"AKUFIN SIGNAL: **{final_signal}**"
+                    )
+                else:
+                    signal_color = "⚪"
+                    st.warning(
+                        f"### {signal_color} "
+                        f"AKUFIN SIGNAL: **{final_signal}**"
+                    )
+
+                st.divider()
+
+                # Main metrics
+                m1, m2, m3, m4, m5 = st.columns(5)
+                m1.metric(
+                    "💎 AKUFIN Score",
+                    f"{akufin_score}/10"
+                )
+                m2.metric(
+                    "🎲 Confidence",
+                    f"{confidence:.0f}%"
+                )
+                m3.metric(
+                    "🤝 Agents Agree",
+                    f"{agents_agree}/4"
+                )
+                m4.metric(
+                    "📈 Pattern",
+                    result.get(
+                        "detected_pattern", "N/A"
+                    )
+                )
+                m5.metric(
+                    "⚠️ Macro Risk",
+                    f"{result.get('macro_risk', 0):.2f}/1.0"
+                )
+
+                st.divider()
+
+                # Trade levels
+                entry = result.get("entry_price", 0)
+                stop = result.get("stop_loss", 0)
+                target = result.get("take_profit", 0)
+                rr = result.get("risk_reward", 0)
+                qty = result.get(
+                    "position_size_pct", 3.0
+                )
+
+                if entry > 0:
+                    st.subheader(
+                        "📍 AKUFIN Trade Levels"
+                    )
+                    t1, t2, t3, t4 = st.columns(4)
+                    t1.metric(
+                        "Entry Price",
+                        f"${entry:.2f}"
+                    )
+                    t2.metric(
+                        "Stop Loss",
+                        f"${stop:.2f}",
+                        f"-${abs(entry-stop):.2f}"
+                    )
+                    t3.metric(
+                        "Take Profit",
+                        f"${target:.2f}",
+                        f"+${abs(target-entry):.2f}"
+                    )
+                    t4.metric(
+                        "R:R Ratio",
+                        f"{rr:.1f}:1"
+                    )
+
+                st.divider()
+
+                # Agent sub-scores
+                st.subheader("🤖 Agent Sub-Scores")
+                score_cols = st.columns(4)
+                score_cols[0].metric(
+                    "🎯 Technical Score",
+                    f"{result.get('technical_score', 0)}/10"
+                )
+                score_cols[1].metric(
+                    "📊 Fundamental Score",
+                    f"{result.get('fundamental_score', 0)}/10"
+                )
+                score_cols[2].metric(
+                    "😊 Sentiment Score",
+                    f"{result.get('sentiment_score', 0)}/10"
+                )
+                score_cols[3].metric(
+                    "📈 Pattern Score",
+                    f"{result.get('pattern_score', 0)}/10"
+                )
+
+                # Score bar
+                st.progress(
+                    min(akufin_score / 10, 1.0),
+                    text=(
+                        f"AKUFIN Score: "
+                        f"{akufin_score}/10 | "
+                        f"Macro: "
+                        f"{result.get('macro_verdict', 'N/A')}"
+                    )
+                )
+
+                st.divider()
+
+                # Full reasoning
+                st.subheader("💭 AKUFIN Reasoning")
+                st.info(
+                    result.get(
+                        "final_reasoning",
+                        "Analysis complete."
+                    )
+                )
+
+                # Save to pending approvals
+                if (
+                    final_signal in ["BUY", "SELL"]
+                    and confidence >= 65
+                    and entry > 0
+                ):
+                    st.divider()
+                    st.subheader(
+                        "⏳ Send To Approval Queue"
+                    )
+
+                    col_save, col_skip = st.columns(2)
+
+                    with col_save:
+                        if st.button(
+                            "💾 Save to Pending Approvals",
+                            type="primary",
+                            use_container_width=True
+                        ):
+                            sig_repo = get_signal_repo()
+                            if sig_repo:
+                                # Calculate quantity
+                                acc = services[
+                                    "broker"
+                                ].get_account()
+                                pv = acc.get(
+                                    "portfolio_value",
+                                    100000
+                                )
+                                risk = abs(entry - stop)
+                                safe_qty = int(
+                                    (pv * 0.02) / risk
+                                ) if risk > 0 else 1
+                                safe_qty = max(
+                                    1, min(safe_qty, 50)
+                                )
+
+                                signal_data = {
+                                    "ticker": intel_ticker,
+                                    "signal": final_signal,
+                                    "portfolio": intel_portfolio,
+                                    "score": int(
+                                        akufin_score
+                                    ),
+                                    "confidence": result.get(
+                                        "confidence", 0
+                                    ),
+                                    "entry_price": entry,
+                                    "stop_loss": stop,
+                                    "take_profit": target,
+                                    "quantity": safe_qty,
+                                    "reasoning": result.get(
+                                        "final_reasoning",
+                                        ""
+                                    )[:500],
+                                    "trend": result.get(
+                                        "detected_pattern",
+                                        "N/A"
+                                    ),
+                                    "rsi": result.get(
+                                        "technical_score",
+                                        0
+                                    ) * 10
+                                }
+
+                                signal_id = sig_repo.save_signal(
+                                    signal_data
+                                )
+
+                                if signal_id:
+                                    st.success(
+                                        f"✅ Signal saved! "
+                                        f"ID: #{signal_id}\n"
+                                        f"Go to Pending "
+                                        f"Approvals to review."
+                                    )
+                                    # Send Telegram
+                                    try:
+                                        from monitoring.telegram_alerts import AKUFINTelegram
+                                        tg = AKUFINTelegram()
+                                        tg.send_trade_signal({
+                                            "ticker": intel_ticker,
+                                            "signal": final_signal,
+                                            "portfolio": intel_portfolio,
+                                            "entry_price": entry,
+                                            "stop_loss": stop,
+                                            "take_profit": target,
+                                            "confidence": result.get(
+                                                "confidence",
+                                                0
+                                            ),
+                                            "quantity": safe_qty,
+                                            "reasoning": result.get(
+                                                "final_reasoning",
+                                                ""
+                                            )[:200]
+                                        })
+                                        st.info(
+                                            "📱 Telegram "
+                                            "notified!"
+                                        )
+                                    except Exception:
+                                        pass
+                                else:
+                                    st.error(
+                                        "❌ Failed to save signal."
+                                    )
+
+                    with col_skip:
+                        st.button(
+                            "⏭️ Skip",
+                            use_container_width=True
+                        )
+
+                elif final_signal == "HOLD":
+                    st.warning(
+                        "⚠️ HOLD signal. "
+                        "Not enough conviction to trade. "
+                        "Agents do not fully agree."
+                    )
+
+                # Store result in session
+                st.session_state[
+                    "last_intel_result"
+                ] = result
+                st.session_state[
+                    "last_intel_ticker"
+                ] = intel_ticker
+
+        except ImportError:
+            st.error(
+                "❌ AKUFIN Orchestrator not found.\n"
+                "Make sure agents/orchestrator.py exists."
+            )
+        except Exception as e:
+            st.error(f"❌ Analysis failed: {e}")
+            import traceback
+            st.code(traceback.format_exc())
+
+    elif "last_intel_result" in st.session_state:
+        # Show previous result
+        st.info(
+            f"Last analysis: "
+            f"**{st.session_state.get('last_intel_ticker')}** | "
+            f"Run new analysis above."
+        )
 # ── Footer ────────────────────────────────────────────
 st.markdown("---")
 st.markdown(
