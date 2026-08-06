@@ -91,10 +91,14 @@ class AlpacaBroker:
             }
 
     def get_positions(self) -> list:
-        """Get all open positions"""
+        """
+        Get ALL open positions including shorts.
+        Returns both LONG and SHORT positions.
+        """
         try:
             positions = self.client.get_all_positions()
             result = []
+
             for pos in positions:
                 entry = safe_float(pos.avg_entry_price)
                 current = safe_float(pos.current_price)
@@ -104,10 +108,18 @@ class AlpacaBroker:
                     pos.unrealized_plpc
                 ) * 100
 
+                # Determine position type
+                side = str(pos.side)
+                if "short" in side.lower():
+                    position_type = "SHORT"
+                else:
+                    position_type = "LONG"
+
                 result.append({
                     "symbol": pos.symbol,
                     "qty": qty,
-                    "side": str(pos.side),
+                    "side": side,
+                    "position_type": position_type,
                     "avg_entry_price": entry,
                     "current_price": current,
                     "market_value": safe_float(
